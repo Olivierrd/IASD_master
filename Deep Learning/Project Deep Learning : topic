@@ -1,0 +1,39 @@
+
+<HEAD> <TITLE>Deep Learning Project</TITLE></HEAD>  
+<P>
+<H2>Deep Learning Project</H2>
+<P>
+<H3>Introduction</H3>
+<P>
+This is the page for the Deep Learning Project of the <A HREF="https://www.lamsade.dauphine.fr/wp/iasd/en/">master IASD</A>. The goal is to train a network for playing the game of Go. In order to be fair about training ressources the number of parameters for the networks you submit must be lower than 1 000 000. The maximum number of students per team is two. The data used for training comes from Facebook ELF opengo Go program self played games. There are more than 109 000 000 different states in total in the training set. The input data is composed of 8 19x19 planes (color to play, ladders, current state on two planes, two previous states on four planes). The output targets are the policy (a vector of size 361 with 1.0 for the move played, 0.0 for the other moves), the value (1.0 if White won, 0.0 if Black won) and the state at the end of the game (two planes).
+<P>
+<H3>Installing the Project</H3>
+<P>
+The project has been written and runs on Ubuntu 18.10. It uses Tensorflow 2.0 and Keras for the network. If you want to use dynamic batches of examples you should also install Pybind11. A set of 100 000 examples is available in the zipfile if you want to start training without Pybind. An example of a small convolutional network with two heads is given in file golois.py and saved in file test.h5. The networks you design and train should also have the same policy and value heads and be saved in h5 format.
+<P>
+<H3>Source files</H3>
+<P>
+The files to use for the project are available here: 
+<A HREF="DeepLearningProject.zip">DeepLearningProject.zip</A>.
+<P>
+An example network and training episode using the precalculated dataset of 100 000 states is given in file golois.py. If you compile the golois library using compile.sh you can get dynamic batches with the golois.getBatch call.
+<P>
+<H3>Tournament</H3>
+<P>
+Each week or so I will organize a tournament between the networks you send me. A referent student in the class should send me a zip file containing all the networks trained by the students who are willing to participate. Each network name is the names of the students who designed and trained the network. The model should be saved in keras h5 format. A swiss tournament of 10 rounds or more will be organized and the results will be posted here. Each network will be used by a PUCT engine that makes 128 evaluations at each move to play in the tournament.
+<H3>References</H3>
+<P>
+"Residual Networks for Computer Go", Tristan Cazenave. IEEE Transactions on Games, Vol. 10 (1), pp 107-110, March 2018. <A HREF="papers/resnet.pdf">resnet.pdf</A>.
+<P>
+"Mastering the game of Go without human knowledge", David Silver et al.  2017. <A HREF="https://www.nature.com/articles/nature24270.epdf?author_access_token=VJXbVjaSHxFoctQQ4p2k4tRgN0jAjWel9jnR3ZoTv0PVW4gB86EEpGqTRDtpIz-2rmo8-KG06gqVobU5NSCFeHILHcVFUeMsbvwS-lxjqQGg98faovwjxeTUgZAUMnRQ">AlphaGoZero</A>.
+<P>
+"Spatial Average Pooling for Computer Go", Tristan Cazenave. CGW at IJCAI 2018. <A HREF="papers/sap.pdf">sap.pdf</A>.
+<P>
+"A general reinforcement learning algorithm that masters chess, shogi, and Go through self-play", David Silver et al. Science 2018. <A HREF=" https://science.sciencemag.org/content/362/6419/1140">AlphaZero</A>
+<P>
+"Mastering Atari, Go, Chess and Shogi by Planning with a Learned Model", Julian Schrittwieser et al. 2019. <A HREF="https://arxiv.org/pdf/1911.08265.pdf">muzero.pdf</A>
+<P>
+"Accelerating Self-Play Learning in Go", David J. Wu. AAAI RLG 2020. <A HREF="https://arxiv.org/pdf/1902.10565.pdf">accelerating.pdf</A>
+<P>
+"Polygames: Improved Zero Learning", Tristan Cazenave et al. 2020. <A HREF="https://arxiv.org/pdf/2001.09832.pdf">polygames.pdf</A>
+<P>
