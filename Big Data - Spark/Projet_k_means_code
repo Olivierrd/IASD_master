@@ -1,0 +1,623 @@
+{"cells":[{"cell_type":"code","source":["# TO RUN (1) 
+from pyspark import SparkContext, SparkConf
+from math import sqrt
+import pyspark.sql.functions as f
+import time
+from time import gmtime, strftime
+from datetime import datetime
+import pandas as pd
+import random"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":1},{"cell_type":"code","source":["# TO RUN (2)
+#Olivier's improvements :
+def seconds_between(d1, d2):
+    d1 = datetime.strptime(d1, \"%H:%M:%S\")
+    d2 = datetime.strptime(d2, \"%H:%M:%S\")
+    return abs((d2 - d1).seconds)
+
+def centroïdes_input(data) :
+  centroide1 = data.map(lambda x : (0, (sum(x[1][:-1]),x[1][:-1]))).map(lambda x : (x[0],x[1][1])).max(lambda x: x[1][0])
+  y = centroide1[1]
+  centroide2 = data.map(lambda x : (1,(computeDistance_improve(y,x[1][:-1]),x[1][:-1] ))).map(lambda x : (x[0],x[1][1])).min(lambda x: x[1])
+  y2 = centroide2[1]
+  point = [x + y for x, y in zip(y, y2)]
+  point = [x / 2 for x in point]
+  centroide = sc.parallelize([centroide1,centroide2,(2,point)])
+  return centroide
+
+def join_centroide_data(data_indexed, nb_clusters):
+  #Build a table containing : 
+  #    ( (index,[caracteristics]), (3 centroides coordinates ) )
+  #    ( (0,[1.0,2.6,3.4,4.3,\"setosa-\"]),( (0,[,,,]),(1,[,,,]),(2,[,,,]) ) )
+  
+  centroides = centroïdes_input(data_indexed)
+  
+  centroides = centroides.collect()
+  #[(0, [4.5, 2.3, 1.3, 0.3]), (1, [6.8, 3.2, 5.9, 2.3]), (2, [5.0, 3.6, 1.4, 0.2])]
+  joined = data_indexed.map(lambda x : (x,centroides))
+  #((0, [5.1, 3.5, 1.4, 0.2, 'Iris-setosa']), [(0, [6.5, 3.2, 5.1, 2.0]), (1, [6.2, 2.8, 4.8, 1.8]), (2, [6.0, 2.7, 5.1, 1.6])])
+  return joined 
+
+
+def computeDistance_improve(x,y):
+  return sum([(a - b)**2 for a,b in zip(x,y)])
+
+def min_(joined) :
+  # [(0, ((0, 0.30000000000000016), (1, 5.31224999411737), (2, 3.057776970284131)) ) )
+  dist_list = joined.map(lambda x : (x[0][0], 
+    ((x[1][0][0], computeDistance_improve(x[0][1][:-1], x[1][0][1])),
+    (x[1][1][0], computeDistance_improve(x[0][1][:-1], x[1][1][1])),
+    (x[1][2][0], computeDistance_improve(x[0][1][:-1], x[1][2][1]))
+  )))
+  min_dist = dist_list.mapValues(closestCluster)
+  return min_dist
+
+def min_list(array) :
+  min = array[0] 
+  for i in range(1,len(array)) :
+    if min > array[i] :
+      min = array[i]
+  return min
+
+def graphe_display(nb_runs,custom_algo_times) :
+  d = {'times': pd.Series(range(1,nb_runs+1)), 'time': custom_algo_times}
+  df = pd.DataFrame(data=d)
+  display(df)
+  
+  
+# def mean_feature(data) :
+#   #return  for each label the mean corresponding to each feature 
+#   cluster_mean = []
+#   cluster_name = data.map(lambda x : x[4]).distinct().collect()
+#   for cluster in range(len(cluster_name)) : 
+#       centroide = []
+#       cluster_sample = data.filter(lambda x : x[4]==cluster_name[cluster]).map(lambda x : x[4]).count()
+#       centroide.append(cluster_name[cluster])
+#       for feature in range(4) :
+#         cluster_feature_mean = data.filter(lambda x : x[4]==cluster_name[cluster]).map(lambda x: x[feature]).sum()/cluster_sample
+#         centroide.append(cluster_feature_mean)
+#       cluster_mean.append(centroide)
+#   return cluster_mean
+ 
+#centroides = sc.parallelize([(0, [6.9125, 3.0999999999999996, 5.846875000000001, 2.1312499999999996]), (1, [5.005999999999999, 3.4179999999999997, 1.464, 0.24400000000000005]), (2, [5.955882352941176, 2.764705882352941, 4.463235294117647, 1.4617647058823529])])
+#cluster_mean = [[\"break\",5.005999999999999, 3.4180000000000006, 1.464, 0.2439999999999999], [\"coupe\",6.587999999999998, 2.9739999999999998, 5.552, 2.026], [\"m\",5.936, 2.77, 4.26, 1.3260000000000003]]
+
+def erreur_improve(assigment):
+  list1 = [1,1,2,2,3,3]
+  list2 = [2,3,3,1,2,1]
+  list3 = [3,2,1,3,1,2]
+  label = assigment.map(lambda x: x[1][1][4]).distinct().collect()
+  percentage_error_list = []
+  for a,b,c in zip(list1,list2,list3) :
+    combinaison = [(label[0],a),(label[1],b),(label[2],c)]
+    pourcentage_error = 0
+    combianaison_assigment = assigment.map(lambda x: (x[1][1][4], x[1][0][0] )).collect()
+    for i in range(len(combianaison_assigment)) :
+        if combianaison_assigment[i] not in (combinaison) :
+          pourcentage_error += 1
+    pourcentage_error /=  len(combianaison_assigment)
+    percentage_error_list.append(pourcentage_error)
+  return min_list(percentage_error_list)                          
+"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":2},{"cell_type":"code","source":["# TO RUN (3)
+# Adele's improvements :
+def compute_distance_selectedfeatures_nosqrrt(x,y,features):
+  sum = 0
+  for f in features:
+    sum += (x[f]-y[f])**2
+  return sum
+
+def min_selectedfeatures(joined,features) :
+  dist_list = joined.map(lambda x : (x[0][0], 
+    ((x[1][0][0], compute_distance_selectedfeatures_nosqrrt(x[0][1][:-1], x[1][0][1], features)),
+    (x[1][1][0], compute_distance_selectedfeatures_nosqrrt(x[0][1][:-1], x[1][1][1], features)),
+    (x[1][2][0], compute_distance_selectedfeatures_nosqrrt(x[0][1][:-1], x[1][2][1], features))
+  )))
+  min_dist = dist_list.mapValues(closestCluster)
+  return min_dist"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":3},{"cell_type":"code","source":["# TO RUN (3 bis)
+# Adele's improvements :
+# if the centroides are not joined in 1 row
+def computeDistance_manhattan(x,y):
+  return sum([(a - b) for a,b in zip(x,y)])
+
+# use manhattan distance with random features and joined centroides
+def compute_distance_manhattan_features(x,y,features):
+  sum = 0
+  for f in features:
+    sum += abs(x[f]-y[f])
+  return sum
+#use manhattan distance with all features and joined centroides
+def compute_distance_manhattan(x,y):
+  return compute_distance_manhattan(x,y,[0,1,2,3])
+
+# get min of manhattan distances with all features
+def min_manhattan(joined) :
+  # [(0, ((0, 0.30000000000000016), (1, 5.31224999411737), (2, 3.057776970284131)) ) )
+  dist_list = joined.map(lambda x : (x[0][0], 
+    ((x[1][0][0], compute_distance_manhattan(x[0][1][:-1], x[1][0][1])),
+    (x[1][1][0], compute_distance_manhattan(x[0][1][:-1], x[1][1][1])),
+    (x[1][2][0], compute_distance_manhattan(x[0][1][:-1], x[1][2][1]))
+  )))
+  min_dist = dist_list.mapValues(closestCluster)
+  return min_dist
+
+# get min of manhattan distances with random features
+def min_manhattan_selectedfeatures(joined,features) :
+  dist_list = joined.map(lambda x : (x[0][0], 
+    ((x[1][0][0], compute_distance_manhattan_features(x[0][1][:-1], x[1][0][1], features)),
+    (x[1][1][0], compute_distance_manhattan_features(x[0][1][:-1], x[1][1][1], features)),
+    (x[1][2][0], compute_distance_manhattan_features(x[0][1][:-1], x[1][2][1], features))
+  )))
+  min_dist = dist_list.mapValues(closestCluster)
+  return min_dist
+"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":4},{"cell_type":"code","source":["# TO RUN (4)
+# Teacher's functions : 
+def computeDistance(x,y):
+  return sqrt(sum([(a - b)**2 for a,b in zip(x,y)]))
+
+def closestCluster(dist_list):
+  cluster = dist_list[0][0]
+  min_dist = dist_list[0][1]
+  for elem in dist_list:
+      if elem[1] < min_dist:
+          cluster = elem[0]
+          min_dist = elem[1]
+  return (cluster,min_dist)
+ 
+def sumList(x,y):
+  return [x[i]+y[i] for i in range(len(x))]
+ 
+def moyenneList(x,n):
+  return [x[i]/n for i in range(len(x))]
+ "],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":5},{"cell_type":"code","source":["# TO RUN (5)
+#----------------------------------------------------
+#       SIMPLE KMEANS FUNCTION (TEACHER'S) (keep for now just in case, supposed to be the same as custom function with false set to the improvement parameters)
+#----------------------------------------------------
+def simpleKmeans(data, nb_clusters):
+  clusteringDone = False
+  number_of_steps = 0
+  current_error = float(\"inf\")
+  # A broadcast value is sent to and saved  by each executor for further use
+  # instead of being sent to each executor when needed.
+  nb_elem = sc.broadcast(data.count())
+
+  #############################
+  # Select initial centroides #
+  #############################
+
+  centroides = sc.parallelize(data.takeSample('withoutReplacment',nb_clusters))\\
+            .zipWithIndex()\\
+            .map(lambda x: (x[1],x[0][1][:-1]))
+  print(\"initial_centroide\", centroides.collect())
+
+  # (0, [4.4, 3.0, 1.3, 0.2])
+  # In the same manner, zipWithIndex gives an id to each cluster
+
+  while not clusteringDone:      
+    joined = data.cartesian(centroides)
+    # print(\"joined : \", joined.collect()) #  [((0, [5.1, 3.5, 1.4, 0.2, 'Iris-setosa']), (0, [6.0, 3.0, 4.8, 1.8])), ((1, [4.9, 3.0, 1.4, 0.2, 'Iris-setosa']), (0, [6.0, 3.0, 4.8, 1.8])), ((2, [4.7, 3.2, 1.3, 0.2, 'Iris-setosa']),
+    # ((0, [5.1, 3.5, 1.4, 0.2, 'Iris-setosa']), (0, [4.4, 3.0, 1.3, 0.2]))
+
+    # We compute the distance between the points and each cluster
+    dist = joined.map(lambda x: (x[0][0],(x[1][0], computeDistance(x[0][1][:-1], x[1][1]))))
+    # (0, (0, 0.866025403784438))
+
+    dist_list = dist.groupByKey().mapValues(list)
+    # (0, [(0, 0.866025403784438), (1, 3.7), (2, 0.5385164807134504)])
+
+    # We keep only the closest cluster to each point.
+    min_dist = dist_list.mapValues(closestCluster)
+    # (0, (2, 0.5385164807134504))
+
+    # assignment will be our return value : It contains the datapoint,
+    # the id of the closest cluster and the distance of the point to the centroid
+    assignment = min_dist.join(data)
+
+    # (0, ((2, 0.5385164807134504), [5.1, 3.5, 1.4, 0.2, 'Iris-setosa']))
+
+    ############################################
+    # Compute the new centroid of each cluster #
+    ############################################
+
+    clusters = assignment.map(lambda x: (x[1][0][0], x[1][1][:-1]))
+    # (2, [5.1, 3.5, 1.4, 0.2])
+ 
+    count = clusters.map(lambda x: (x[0],1)).reduceByKey(lambda x,y: x+y)
+    #count = (1 , 100),(2 , 200), (3, 50) 
+    #       (n° de cluster, nb d'element)
+    somme = clusters.reduceByKey(sumList)
+    # somme = (1,sum of rows du clust 1), (2, 6000) , (3, 1500)
+    # .    (n° de cluster, sommedes elements )
+    centroidesCluster = somme.join(count).map(lambda x : (x[0],moyenneList(x[1][0],x[1][1])))
+    # (n° de cluster, average)
+    ############################
+    # Is the clustering over ? #
+    ############################
+
+    # Let's see how many points have switched clusters.
+    if number_of_steps > 0:
+        switch = prev_assignment.join(min_dist)\\
+                                .filter(lambda x: x[1][0][0] != x[1][1][0])\\
+                                .count()
+    else:
+        switch = 150
+    if switch == 0 or number_of_steps == 100:
+        clusteringDone = True
+        error_improve = erreur_improve(assignment) #adding to compare
+        error = sqrt(min_dist.map(lambda x: x[1][1]).reduce(lambda x,y: x + y))/nb_elem.value
+    else:
+        centroides = centroidesCluster
+        prev_assignment = min_dist
+        if number_of_steps % 10 == 0 : 
+          print(\"number_of_steps :\", number_of_steps)
+        number_of_steps += 1
+
+  return (assignment, error, number_of_steps, centroides, error_improve)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":6},{"cell_type":"code","source":["# TO RUN (6)
+#----------------------------------------------------
+#       CUSTOM KMEANS FUNCTION WITH ALL IMPROVEMENTS
+#----------------------------------------------------
+def custom_kmeans(data, nb_clusters=3, join_centroids_inrdd=False, choose_initial_centroid=False, random_features=False, epsilon_change_nbfeatures=0, with_regular_check=False, interval_regular_check=10,distance=\"eucledian\"):
+  \"\"\"
+  This function executes the kmeans algorithm with combinations of the different implemented improvements.
+  
+  Parameters :
+    * data
+    * nb_clusters
+    * join_centroids_inrdd (bool) : if set to True, at each iteration, one rdd line contains a point and the 3 centroids (and no longer 3 lines for 3 centroids)
+    * choose_initial_centroid (bool) : if set to True, (initialize according to kmeans+ algo) the initial centroids are chosen with our improvement (1 : max, 2 : furthest from 1, 3 : middle between 1 & 2)
+    * random_features (bool) : if set to True, the algorithm will choose a subset of the features to compute the distance (2 to start, then 3, then 4)
+    * epsilon_change_nbfeatures (int) : if random_features is set to True, this parameter tells when to increase the number of features to select
+    * with_regular_check (bool) : if set to True and with random_features, performs a step with all features regularly
+    * interval_regular_check (int) : sets the number of iterations between two full feature checks
+    * distance (string) : the name of the distance to use (supported yet are \"eucledian\" and \"manhattan\")
+  
+  Returns :
+    (assignment, error, number_of_steps)
+  
+  \"\"\"
+  clusteringDone = False
+  number_of_steps = 0
+  current_error = float(\"inf\")
+  nb_elem = sc.broadcast(data.count())
+  nb_features_selected = 2
+  #############################
+  # Select initial centroides #
+  #############################
+  if choose_initial_centroid == True :
+    centroides = centroïdes_input(data)
+    print(\"initial_centroide\", centroides.collect())
+    centroides.show()
+  else :
+    centroides = sc.parallelize(data.takeSample('withoutReplacment',nb_clusters))\\
+            .zipWithIndex()\\
+            .map(lambda x: (x[1],x[0][1][:-1]))
+    
+  while not clusteringDone:
+
+      #############################
+      # Assign points to clusters #
+      #############################
+      if join_centroids_inrdd == True :
+        joined = join_centroide_data(data,3)
+        if random_features == True :
+          features = []
+          if with_regular_check == True and (number_of_steps%interval_regular_check == 0):
+            features = [0,1,2,3]
+          else:
+            # start by checking if we need to change the number of features
+            if(number_of_steps > 0) and switch < epsilon_change_nbfeatures and switch_prev < epsilon_change_nbfeatures and nb_features_selected < 4:
+              nb_features_selected += 1
+            random.seed(number_of_steps)
+            features = random.sample([0,1,2,3], k=nb_features_selected) #choose randomly the features to observe
+          
+          
+          if(distance == \"manhattan\"):
+            min_dist = min_manhattan_selectedfeatures(joined,features)
+          else :
+            min_dist = min_selectedfeatures(joined,features) # specify the features selected
+        
+        else:
+          if(distance == \"manhattan\"):
+            min_dist = min_manhattan(joined)
+          else :
+            min_dist = min_(joined)
+          
+        assignment = min_dist.join(data)
+
+      else : 
+        joined = data.cartesian(centroides)
+
+        # We compute the distance between the points and each cluster
+        if(distance == \"manhattan\"):
+          dist = joined.map(lambda x: (x[0][0],(x[1][0], computeDistance_manhattan(x[0][1][:-1], x[1][1]))))
+        else:
+          dist = joined.map(lambda x: (x[0][0],(x[1][0], computeDistance(x[0][1][:-1], x[1][1]))))
+
+        dist_list = dist.groupByKey().mapValues(list)
+
+        # We keep only the closest cluster to each point.
+        min_dist = dist_list.mapValues(closestCluster)
+
+        # assignment will be our return value : It contains the datapoint,
+        # the id of the closest cluster and the distance of the point to the centroid
+        assignment = min_dist.join(data)
+
+      ############################################
+      # Compute the new centroid of each cluster #
+      ############################################
+
+      clusters = assignment.map(lambda x: (x[1][0][0], x[1][1][:-1]))
+      
+      count = clusters.map(lambda x: (x[0],1)).reduceByKey(lambda x,y: x+y)
+      #count = (1 , 100),(2 , 200), (3, 50) 
+      #       (n° de cluster, nb d'element)
+      somme = clusters.reduceByKey(sumList)
+      # somme = (1,sum of rows du clust 1), (2, 6000) , (3, 1500)
+      # .    (n° de cluster, sommedes elements )
+      centroidesCluster = somme.join(count).map(lambda x : (x[0],moyenneList(x[1][0],x[1][1])))
+      # (n° de cluster, average)
+      ############################
+      # Is the clustering over ? #
+      ############################
+
+      # Let's see how many points have switched clusters.
+      if number_of_steps > 0:
+          switch_prev = switch
+          switch = prev_assignment.join(min_dist)\\
+                                  .filter(lambda x: x[1][0][0] != x[1][1][0])\\
+                                  .count()
+      else:
+          switch = 150
+          switch_prev = switch
+      if (switch == 0 and switch_prev == 0) or number_of_steps > 100: 
+          if nb_features_selected != 4 : 
+            nb_features_selected += 1
+          else : 
+            clusteringDone = True
+            error_improve = erreur_improve(assignment)
+            error = sqrt(min_dist.map(lambda x: x[1][1]).reduce(lambda x,y: x + y))/nb_elem.value
+      else:
+          centroides = centroidesCluster
+          prev_assignment = min_dist
+          if number_of_steps % 10 == 0 : 
+            print(\"number_of_steps :\", number_of_steps)
+          number_of_steps += 1
+
+  return (assignment, error, number_of_steps, centroides, error_improve)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":7},{"cell_type":"code","source":["# TO RUN (7) (change custom params (around line 29) before run)
+#----------------------------------------------------
+#         GLOBAL FUNCTION
+#----------------------------------------------------
+def main_function(path='/FileStore/tables/iris_data-04fff.txt',nb_runs=3, teacher_runs = True, student_runs=True):
+  \"\"\"
+  Global function that includes all the improvements.
+  
+  Parameters :
+    path (string) : path to the data file
+    nb_runs (int) : number of runs to compute the mean for the time spent
+  Returns :
+    avg_custom (float) : the average of execution time for the custom algo
+    avg_basic (float) : the average of execution time for the original algo
+  \"\"\"
+  
+  # include parameters in case we use different data : nb of clusters ?, nb of features ?
+  
+  startTimeQuery = time.clock()
+  lines = sc.textFile(path)
+  data = lines.map(lambda x: x.split(','))\\
+          .map(lambda x: [float(i) for i in x[:4]]+[x[4]])\\
+          .zipWithIndex()\\
+          .map(lambda x: (x[1],x[0]))
+  
+  custom_algo_times = []
+  basic_algo_times = []
+  if student_runs ==  True :
+    for i in range(nb_runs) : 
+      print(\"\")
+      start =strftime(\"%H:%M:%S\", gmtime()) 
+      
+      clustering = custom_kmeans(data, nb_clusters=3, join_centroids_inrdd=True, choose_initial_centroid=True, random_features=True, epsilon_change_nbfeatures=10, with_regular_check=True, interval_regular_check=5, distance=\"manhattan\") # specify here the improvements to do in the parameters
+      
+      
+      print(\"CUSTOM :\", \"pourcentage_miss_labelised :\" ,clustering[4],  \"error :\", clustering[1],  \" clustering_nbr_loop : \", clustering[2],  \" clusters : \", clustering[3].collect())
+      custom_algo_times.append(seconds_between(start, strftime(\"%H:%M:%S\", gmtime()))) 
+
+  if teacher_runs ==  True :
+    for i in range(int(nb_runs/10)) : 
+      #compare to the teacher's function
+      start =strftime(\"%H:%M:%S\", gmtime())
+      clustering = simpleKmeans(data, 3) 
+      print(\"\")
+      print(\"TEACHER :\", \"pourcentage_miss_labelised :\" ,clustering[4], \"error :\", clustering[1],  \" clustering_nbr_loop : \", clustering[2],\" clusters : \", clustering[3].collect())    
+      basic_algo_times.append(seconds_between(start, strftime(\"%H:%M:%S\", gmtime()))) 
+
+  avg_custom = sum(custom_algo_times)/nb_runs
+  avg_basic = 0
+  print(\"Nb of runs = \",nb_runs)
+  if(teacher_runs ==  True):
+    avg_basic = sum(basic_algo_times)/int(nb_runs/10)
+    print(\"Average of execution time for the original algo : \",avg_basic)
+    print(\"Execution times for the initial algo : \",basic_algo_times)
+  print(\"Average of execution time for the custom algo :\",avg_custom)
+  print(\"Execution times for the custom algo : \",custom_algo_times)
+  return avg_custom,avg_basic,custom_algo_times,basic_algo_times"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":8},{"cell_type":"code","source":["# TO RUN (8)
+#----------------------------------
+#            MAIN
+#----------------------------------
+
+#IRIS DATASET STUDENT ALGO
+
+if __name__ == \"__main__\":
+  #path = '/FileStore/tables/iris_data-04fff.txt'
+  path = '/FileStore/tables/voiture_type.txt'
+  nb_runs = 5
+  data = sc.textFile(path).map(lambda x: x.split(',')).map(lambda x: [float(i) for i in x[:4]]+[x[4]])
+  avg_custom,avg_basic,custom_algo_times,basic_algo_times = main_function(path=path,nb_runs=nb_runs, student_runs = True, teacher_runs = False)
+  "],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"><span class=\"ansi-red-fg\">---------------------------------------------------------------------------</span>
+<span class=\"ansi-red-fg\">AttributeError</span>                            Traceback (most recent call last)
+<span class=\"ansi-green-fg\">&lt;command-4329069734750555&gt;</span> in <span class=\"ansi-cyan-fg\">&lt;module&gt;</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     11</span>   nb_runs <span class=\"ansi-blue-fg\">=</span> <span class=\"ansi-cyan-fg\">5</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     12</span>   data <span class=\"ansi-blue-fg\">=</span> sc<span class=\"ansi-blue-fg\">.</span>textFile<span class=\"ansi-blue-fg\">(</span>path<span class=\"ansi-blue-fg\">)</span><span class=\"ansi-blue-fg\">.</span>map<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-green-fg\">lambda</span> x<span class=\"ansi-blue-fg\">:</span> x<span class=\"ansi-blue-fg\">.</span>split<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-blue-fg\">&#39;,&#39;</span><span class=\"ansi-blue-fg\">)</span><span class=\"ansi-blue-fg\">)</span><span class=\"ansi-blue-fg\">.</span>map<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-green-fg\">lambda</span> x<span class=\"ansi-blue-fg\">:</span> <span class=\"ansi-blue-fg\">[</span>float<span class=\"ansi-blue-fg\">(</span>i<span class=\"ansi-blue-fg\">)</span> <span class=\"ansi-green-fg\">for</span> i <span class=\"ansi-green-fg\">in</span> x<span class=\"ansi-blue-fg\">[</span><span class=\"ansi-blue-fg\">:</span><span class=\"ansi-cyan-fg\">4</span><span class=\"ansi-blue-fg\">]</span><span class=\"ansi-blue-fg\">]</span><span class=\"ansi-blue-fg\">+</span><span class=\"ansi-blue-fg\">[</span>x<span class=\"ansi-blue-fg\">[</span><span class=\"ansi-cyan-fg\">4</span><span class=\"ansi-blue-fg\">]</span><span class=\"ansi-blue-fg\">]</span><span class=\"ansi-blue-fg\">)</span>
+<span class=\"ansi-green-fg\">---&gt; 13</span><span class=\"ansi-red-fg\">   </span>avg_custom<span class=\"ansi-blue-fg\">,</span>avg_basic<span class=\"ansi-blue-fg\">,</span>custom_algo_times<span class=\"ansi-blue-fg\">,</span>basic_algo_times <span class=\"ansi-blue-fg\">=</span> main_function<span class=\"ansi-blue-fg\">(</span>path<span class=\"ansi-blue-fg\">=</span>path<span class=\"ansi-blue-fg\">,</span>nb_runs<span class=\"ansi-blue-fg\">=</span>nb_runs<span class=\"ansi-blue-fg\">,</span> student_runs <span class=\"ansi-blue-fg\">=</span> <span class=\"ansi-green-fg\">True</span><span class=\"ansi-blue-fg\">,</span> teacher_runs <span class=\"ansi-blue-fg\">=</span> <span class=\"ansi-green-fg\">False</span><span class=\"ansi-blue-fg\">)</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     14</span> 
+
+<span class=\"ansi-green-fg\">&lt;command-4329069734750554&gt;</span> in <span class=\"ansi-cyan-fg\">main_function</span><span class=\"ansi-blue-fg\">(path, nb_runs, teacher_runs, student_runs)</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     31</span>       start <span class=\"ansi-blue-fg\">=</span>strftime<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-blue-fg\">&#34;%H:%M:%S&#34;</span><span class=\"ansi-blue-fg\">,</span> gmtime<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-blue-fg\">)</span><span class=\"ansi-blue-fg\">)</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     32</span> 
+<span class=\"ansi-green-fg\">---&gt; 33</span><span class=\"ansi-red-fg\">       </span>clustering <span class=\"ansi-blue-fg\">=</span> custom_kmeans<span class=\"ansi-blue-fg\">(</span>data<span class=\"ansi-blue-fg\">,</span> nb_clusters<span class=\"ansi-blue-fg\">=</span><span class=\"ansi-cyan-fg\">3</span><span class=\"ansi-blue-fg\">,</span> join_centroids_inrdd<span class=\"ansi-blue-fg\">=</span><span class=\"ansi-green-fg\">True</span><span class=\"ansi-blue-fg\">,</span> choose_initial_centroid<span class=\"ansi-blue-fg\">=</span><span class=\"ansi-green-fg\">True</span><span class=\"ansi-blue-fg\">,</span> random_features<span class=\"ansi-blue-fg\">=</span><span class=\"ansi-green-fg\">True</span><span class=\"ansi-blue-fg\">,</span> epsilon_change_nbfeatures<span class=\"ansi-blue-fg\">=</span><span class=\"ansi-cyan-fg\">10</span><span class=\"ansi-blue-fg\">,</span> with_regular_check<span class=\"ansi-blue-fg\">=</span><span class=\"ansi-green-fg\">True</span><span class=\"ansi-blue-fg\">,</span> interval_regular_check<span class=\"ansi-blue-fg\">=</span><span class=\"ansi-cyan-fg\">5</span><span class=\"ansi-blue-fg\">,</span> distance<span class=\"ansi-blue-fg\">=</span><span class=\"ansi-blue-fg\">&#34;manhattan&#34;</span><span class=\"ansi-blue-fg\">)</span> <span class=\"ansi-red-fg\"># specify here the improvements to do in the parameters</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     34</span> 
+<span class=\"ansi-green-intense-fg ansi-bold\">     35</span> 
+
+<span class=\"ansi-green-fg\">&lt;command-4329069734750553&gt;</span> in <span class=\"ansi-cyan-fg\">custom_kmeans</span><span class=\"ansi-blue-fg\">(data, nb_clusters, join_centroids_inrdd, choose_initial_centroid, random_features, epsilon_change_nbfeatures, with_regular_check, interval_regular_check, distance)</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     33</span>     centroides <span class=\"ansi-blue-fg\">=</span> centroïdes_input<span class=\"ansi-blue-fg\">(</span>data<span class=\"ansi-blue-fg\">)</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     34</span>     print<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-blue-fg\">&#34;initial_centroide&#34;</span><span class=\"ansi-blue-fg\">,</span> centroides<span class=\"ansi-blue-fg\">.</span>collect<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-blue-fg\">)</span><span class=\"ansi-blue-fg\">)</span>
+<span class=\"ansi-green-fg\">---&gt; 35</span><span class=\"ansi-red-fg\">     </span>centroides<span class=\"ansi-blue-fg\">.</span>show<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-blue-fg\">)</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     36</span>   <span class=\"ansi-green-fg\">else</span> <span class=\"ansi-blue-fg\">:</span>
+<span class=\"ansi-green-intense-fg ansi-bold\">     37</span>     centroides <span class=\"ansi-blue-fg\">=</span> sc<span class=\"ansi-blue-fg\">.</span>parallelize<span class=\"ansi-blue-fg\">(</span>data<span class=\"ansi-blue-fg\">.</span>takeSample<span class=\"ansi-blue-fg\">(</span><span class=\"ansi-blue-fg\">&#39;withoutReplacment&#39;</span><span class=\"ansi-blue-fg\">,</span>nb_clusters<span class=\"ansi-blue-fg\">)</span><span class=\"ansi-blue-fg\">)</span><span class=\"ansi-red-fg\">\\</span>
+
+<span class=\"ansi-red-fg\">AttributeError</span>: &#39;RDD&#39; object has no attribute &#39;show&#39;</div>"]}}],"execution_count":9},{"cell_type":"code","source":["from pyspark.sql import SQLContext
+import pyspark.sql.functions as F
+
+sqlContext = SQLContext(sc)
+path='/FileStore/tables/iris_data-04fff.txt'
+df1 = sqlContext.read.format('com.databricks.spark.csv').options(header='false', inferschema='true').load(path).withColumnRenamed('_c4','label')
+
+centroide1 = [5.1, 3.5, 1.4, 0.2]
+centroide2 = [5.1, 3.5, 1.4, 0.3]
+centroide3 = [5.1, 3.5, 1.4, 0.1]
+
+
+
+
+import numpy as np
+import pandas as pd
+
+\"\"\" This just creates a list of touples, and each element of the touple is an array\"\"\"
+a = [ (centroide1)  for i in range(0,df1.count()) ]
+print(a)
+
+df[\"centroide1\"]= a"],"metadata":{},"outputs":[],"execution_count":10},{"cell_type":"code","source":["print((df.count(), len(df.columns)))
+"],"metadata":{},"outputs":[],"execution_count":11}],"metadata":{"name":"Spark_kmeans_project (last) (2) (1)","notebookId":4329069734750546},"nbformat":4,"nbformat_minor":0}
+
