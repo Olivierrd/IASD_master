@@ -1,0 +1,1070 @@
+{"cells":[{"cell_type":"markdown","source":["# Practical Session 3: Association rule mining
+
+In this session, we will build a first set of algorithms to infer rules from a dataset.  This is known as association rule mining (e.g. people who buy potates and bread are likely to be building a burger and therefore interested in salad and steaks)"],"metadata":{}},{"cell_type":"code","source":["import matplotlib.pyplot as plt"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":2},{"cell_type":"code","source":["%matplotlib inline"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">%matplotlib inline is not supported in Databricks.
+You can display matplotlib figures using display(). For an example, see https://docs.databricks.com/user-guide/visualizations/matplotlib-and-ggplot.html
+</div>"]}}],"execution_count":3},{"cell_type":"markdown","source":["## Downloading and unzipping the data (MovieLens)"],"metadata":{}},{"cell_type":"code","source":["import urllib
+import zipfile
+
+url = 'http://files.grouplens.org/datasets/movielens/ml-20m.zip'
+filehandle, _ = urllib.request.urlretrieve(url, '/tmp/data.zip')
+zip_file_object = zipfile.ZipFile(filehandle, 'r')
+zip_file_object.namelist()
+zip_file_object.extractall()"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":5},{"cell_type":"markdown","source":["## Reading data"],"metadata":{}},{"cell_type":"code","source":["from pyspark.sql import SparkSession
+
+spark = SparkSession \\
+    .builder \\
+    .appName(\"Dataset\") \\
+    .getOrCreate()
+"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":7},{"cell_type":"code","source":["movies_path = \"file:///databricks/driver/ml-20m/movies.csv\"
+ratings_path = \"file:///databricks/driver/ml-20m/ratings.csv\""],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":8},{"cell_type":"markdown","source":["We read the csv files using [`spark.read`](https://spark.apache.org/docs/latest/sql-data-sources-load-save-functions.html)"],"metadata":{}},{"cell_type":"code","source":["import pyspark.sql.functions as sf
+
+movies_df = spark.read.options(header=True).csv(movies_path)
+# TASK 1: explain what the filter below does.  Why did we not use sample instead?
+print(\"Nombre de lignes dans le fichier d'origine : \", spark.read.options(header=True).csv(ratings_path).count())
+ratings_df = spark.read.options(header=True).csv(ratings_path).filter(sf.expr('PMOD(HASH(userId),10)')==0)
+print(\"Nombre de lignes dans le fichier après filtrage : \",ratings_df.count())"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">Nombre de lignes dans le fichier d&#39;origine :  20000263
+Nombre de lignes dans le fichier après filtrage :  1991240
+</div>"]}}],"execution_count":10},{"cell_type":"markdown","source":["**Task 1 :** Cette commande permet de prendre 10 % de la totalité des lignes. Ensuite le hashage s'effectue sur les usersid dans le but de protéger l'identité d'une personne si la donnée venait à être hackée. De plus, le hashing est souvent utilisé pour faciliter le partitionnement de la donnée dans une base de donnée. Cela permet de mieux la répartir suivant la règle de hashing."],"metadata":{}},{"cell_type":"markdown","source":["We cache the read dataframes to avoid reloading them in subsequent computation."],"metadata":{}},{"cell_type":"code","source":["movies_df.cache()
+ratings_df.cache()"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">Out[9]: DataFrame[userId: string, movieId: string, rating: string, timestamp: string]</div>"]}}],"execution_count":13},{"cell_type":"markdown","source":["We then print a few rows from each dataframe."],"metadata":{}},{"cell_type":"code","source":["movies_df.show(5)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">+-------+--------------------+--------------------+
+movieId|               title|              genres|
++-------+--------------------+--------------------+
+      1|    Toy Story (1995)|Adventure|Animati...|
+      2|      Jumanji (1995)|Adventure|Childre...|
+      3|Grumpier Old Men ...|      Comedy|Romance|
+      4|Waiting to Exhale...|Comedy|Drama|Romance|
+      5|Father of the Bri...|              Comedy|
++-------+--------------------+--------------------+
+only showing top 5 rows
+
+</div>"]}}],"execution_count":15},{"cell_type":"code","source":["ratings_df.show(5)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">+------+-------+------+---------+
+userId|movieId|rating|timestamp|
++------+-------+------+---------+
+    12|      1|   4.0|859063718|
+    12|      3|   3.0|859063774|
+    12|      5|   2.0|859063774|
+    12|      6|   3.0|859063774|
+    12|      7|   3.0|859063774|
++------+-------+------+---------+
+only showing top 5 rows
+
+</div>"]}}],"execution_count":16},{"cell_type":"code","source":["ratings_df.select('movieId').distinct().count()"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">Out[12]: 17234</div>"]}}],"execution_count":17},{"cell_type":"code","source":["ratings_df.select('userId').distinct().count()"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">Out[13]: 13885</div>"]}}],"execution_count":18},{"cell_type":"code","source":["from pyspark.sql.window import Window
+from pyspark.sql import functions as F
+import pyspark"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":19},{"cell_type":"code","source":["# TASK 2: filter ratings to keep only the latest 100 ratings per user
+#, sf.expr('HASH(movieId)'
+# Hint: create a new column called tm_rank that sorts the ratings per timestamp and per hash of #movie id.
+#       use sf.rank(), sf.struct(), sf.hash() to create this column, then filter() to filter the #data
+#       do not forget to drop this new column once you are done.
+lim_ratings_df= ratings_df.withColumn(\"row_number\",F.row_number().over(Window.partitionBy(\"userId\").orderBy(F.col(\"timestamp\").desc())))\\
+.filter(\"row_number < 101\").select(\"userId\",\"movieId\",\"rating\",\"timestamp\")"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":20},{"cell_type":"code","source":["lim_ratings_df.show(5)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">+------+-------+------+---------+
+userId|movieId|rating|timestamp|
++------+-------+------+---------+
+100010|   1923|   3.0|959995796|
+100010|   2359|   3.0|959995778|
+100010|    562|   5.0|959995759|
+100010|   2496|   3.0|959995759|
+100010|    635|   3.0|959995738|
++------+-------+------+---------+
+only showing top 5 rows
+
+</div>"]}}],"execution_count":21},{"cell_type":"code","source":["# sanity check: this should return a min of 20 and a max of 100
+lim_ratings_df\\
+    .groupby('userId')\\
+    .agg(sf.count('*').alias('num_ratings'))\\
+    .agg(sf.min('num_ratings'), sf.max('num_ratings'))\\
+    .toPandas()"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border=\"1\" class=\"dataframe\">
+  <thead>
+    <tr style=\"text-align: right;\">
+      <th></th>
+      <th>min(num_ratings)</th>
+      <th>max(num_ratings)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>20</td>
+      <td>100</td>
+    </tr>
+  </tbody>
+</table>
+</div>"]}}],"execution_count":22},{"cell_type":"code","source":["lim_ratings_df.select(\"movieID\").distinct().count()"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">Out[18]: 13404</div>"]}}],"execution_count":23},{"cell_type":"markdown","source":["### 1. Naive approach: Find recurring pairs & triplets.
+This approach is simple and not efficient but gives you a baseline and intuition for the next steps."],"metadata":{}},{"cell_type":"code","source":["import pyspark.sql.functions as F
+from pyspark.sql.functions import udf
+import time
+from datetime import datetime
+from time import gmtime, strftime
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from itertools import combinations
+
+# Utilisé pour réaliser des combinaisons de tripplets et de pairs dans une liste. Utilisé dans l'approche naive 1
+@udf(\"array<array<string>>\")
+def combinations_list_2(x):
+   return list(combinations(x, 2))
+  
+@udf(\"array<array<string>>\")
+def combinations_list_3(x):
+   return list(combinations(x, 3))  
+
+# avoid timeout after 300 seonds
+spark.conf.set(\"spark.sql.broadcastTimeout\",  -1)
+  
+# Permet de caluler la différence entre deux dates et retroune le nombre de secondes
+def seconds_between(d1, d2):
+    d1 = datetime.strptime(d1, \"%H:%M:%S\")
+    d2 = datetime.strptime(d2, \"%H:%M:%S\")
+    return abs((d2 - d1).seconds)
+
+#Utiliser pour effectuer plusieurs essais et calculer une moyenne. Cependant cette fonction n'a pas été utilisée car elle ne recalule pas la \"fonction\".
+# En effet les temps retournés sont identiques et l'affichage des éléments de la fonction se fait une unique fois.
+def measure_time(times, function) : # fonction  non utilisée ..
+  time_list = []
+  # La function ne se recalcule par suivant times. Le temps renvoyé est identique .. 
+#   for i in range(times) :
+#     time = function 
+#     time_list.append(time)
+  return  time_list, sum(time_list)/times
+  
+#Permet de relier les movieids à leurs movie_titles
+def link_movie(df, df_movie) : 
+  Index_pair_movie = df.limit(25).select(F.explode(\"movieIds\").alias(\"movieId\"), \"ids\").join(df_movie, \"movieId\")
+  Index_movie_name = Index_pair_movie.select(\"title\", \"ids\").groupBy('ids').agg(F.collect_set('title').alias('Movie_names'))
+  return df.limit(25).join(Index_movie_name, \"ids\").orderBy(F.col(\"ids\"))
+  "],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":25},{"cell_type":"code","source":["# TASK 3: find recurring pairs with a naive approach, then show the top 25 results
+# Remember to use the title field to make the results interpretable
+# Also, make sure to work with lim_ratings_df, not ratings_df!
+  
+# Nous avons effectué deux approches naïves similaires pour faire cette partie. Elles s'avèrent être très similaires et le temps d'éxécution varie peu.  
+  
+def naive_approach_1(df, df_movie, movie_name) :
+  # TASK 3: find recurring pairs with a naive approach, then show the top 25 results 
+  
+  start =strftime(\"%H:%M:%S\", gmtime()) 
+  
+  #On commence par aggréger les films par user :
+  df_2 = df.groupBy('userId').agg(F.collect_set('movieId').alias('movieIds'))
+  
+   # On crée une liste de pair de films  
+   # Puis on explose la liste des pairs de films 
+   # On compte les pairs de films vu par les users en les rangeant par ordre décroissant  
+   # Création d'un id par pair de film
+  df2 = df_2.withColumn(\"pairs\",combinations_list_2(\"movieIds\"))\\
+  .select(F.explode(\"pairs\").alias(\"movieIds\"))\\
+  .groupby(\"movieIds\").count().orderBy(F.col(\"count\").desc())\\
+  .withColumn(\"ids\", F.monotonically_increasing_id())
+  
+   # On relie les Movie Id à leurs titres
+  if movie_name == True : 
+    link_movie(df2,df_movie ).show(25)                           
+  else : 
+    df2.show(25)
+
+  # TASK 4: find recurring triplets and show the top 25 results.
+  
+  # On procède de la même manière avec les triplets : 
+  df2 = df_2.withColumn(\"triplets\",combinations_list_3(\"movieIds\"))\\
+  .select(F.explode(\"triplets\").alias(\"movieIds\"))\\
+  .groupby(\"movieIds\").count().orderBy(F.col(\"count\").desc())\\
+  .withColumn(\"ids\", F.monotonically_increasing_id())
+  if movie_name == True : 
+    link_movie(df2,df_movie ).show(25)
+  else : 
+    df2.show(25)
+  time = seconds_between(start, strftime(\"%H:%M:%S\", gmtime()))
+  return time
+
+
+def naive_approach_2(df,df_movie,movie_name):
+  # TASK 3: find recurring pairs with a naive approach, then show the top 25 results
+  start =strftime(\"%H:%M:%S\", gmtime()) 
+  #Ajouter une colonne avec moviesid2 correspondant aux MovieIds d'un user. Puis, on ffetue un filtre pour retirer les pairs d'un meme movieId.
+  df_1 = df.select(\"userId\", F.col(\"movieId\").alias(\"movieId1\"))\\
+  .join(df.select(\"userId\", F.col(\"movieId\").alias(\"movieId2\")), \"userId\")\\
+  .filter(\"movieId1!=movieId2\")
+  
+  # Effectuer un rangement ordonné des MovieIds, puis utilisation du row_number sur les usersids et MovieIds dans le but d'effectuer un filtre. 
+  # Ce dernier retire les doublons pour un même user. 
+  df2 =df_1.select(\"userId\", F.sort_array(F.array(\"movieId1\",\"movieId2\")).alias(\"movieIds\"))\\
+  .withColumn(\"row_number\", F.row_number().over(Window.partitionBy(\"userId\", \"movieIds\").orderBy(F.col(\"movieIds\").desc())))\\
+  .filter(\"row_number==1\")
+  
+  #Indexation des pairs de movieID pour effectuer le lien avec les moviename.
+  df2= df2.groupby(\"movieIds\").count().orderBy(F.col(\"count\").desc())\\
+  .withColumn(\"ids\", F.monotonically_increasing_id())
+  
+  #Choix d'affichage suivant si l'utilisateur souhaite afficher les moviename ou non.
+  if movie_name == True : 
+    link_movie(df2,df_movie ).show(25)
+  else : 
+    df2.show(25)
+    
+  # TASK 4: find recurring triplets and show the top 25 results.
+  # Recupère la table avec movieid1 et movied. Ajoute le movieid3 et effectue un filtre pour garantir que les 3 ids soient distincts. 
+  # Enfin, on range les trois moviesids et on retire les doublons grâce à row_number pour chaque user. 
+  df2 = df_1.join(df.select(\"userId\", F.col(\"movieId\").alias(\"movieId3\")), \"userId\")\\
+  .filter(\"movieId2!=movieId3 AND movieId1!=movieId3\").select(\"userId\", F.sort_array(F.array(\"movieId1\",\"movieId2\",\"movieId3\")).alias(\"movieIds\"))\\
+  .withColumn(\"row_number\", F.row_number().over(Window.partitionBy(\"userId\", \"movieIds\").orderBy(F.col(\"movieIds\").desc())))\\
+  .filter(\"row_number==1\")
+  
+  # Indexation des triplets de movieID pour effectuer le lien avec les moviename.
+  df2= df2.groupby(\"movieIds\").count().orderBy(F.col(\"count\").desc())\\
+  .withColumn(\"ids\", F.monotonically_increasing_id())
+  if movie_name == True : 
+    link_movie(df2,df_movie ).show(25)
+  else : 
+    df2.show(25)
+  return seconds_between(start, strftime(\"%H:%M:%S\", gmtime()))
+"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":26},{"cell_type":"markdown","source":["### 2. Second approach: A priori  
+Implement your own version of A priori.  You may use resources from the web.
+https://fr.wikipedia.org/wiki/Algorithme_APriori
+https://www.hackerearth.com/blog/developers/beginners-tutorial-apriori-algorithm-data-mining-r-implementation"],"metadata":{}},{"cell_type":"code","source":["# TASK 5: implement the a priori approach to find recurring pairs and triplets more efficiently
+
+def appriori_approach(df, df_movie, minsupp, movie_name) :
+  
+  # Step 1: Create a frequency table of all the items that occur in all the transactions. For our case:
+  
+  start =strftime(\"%H:%M:%S\", gmtime()) 
+  nb_users=df.select(\"userId\").distinct().count()
+  seuil=nb_users*minsupp # Cette opération permet de ne pas diviser toutes les lignes par nb_users
+ 
+  # Obtenir (movieId, count) , count est le nombre de fois le movieId a été vu
+  df2 = df.groupby(\"movieId\").count()
+  #Step 2: We know that only those elements are significant for which the support is greater than or equal to the threshold support.
+  
+  filter = df2.filter(F.col(\"count\") >=  seuil)
+
+  #Step 3: We will now count the occurrences of each pair in all the transactions.
+  
+  print(\"Number of movieId before filtration : \", df.select(\"movieId\").distinct().count())
+  # On sélectionne uniquement les MovieIds suivant le filtre
+  df_app = df.join(filter.select(\"movieId\"), \"movieId\" , 'inner')
+  print(\"Number of movieId after filtration : \", df_app.select(\"movieId\").distinct().count())
+  # Création d'une liste des MovieIds par user
+  df2 = df_app.groupBy('userId').agg(F.collect_set('movieId').alias('movieIds'))
+   # Modifiaction de la colonne movieIds ((12,13), (14,13), (14,12)) , puis créationd'une colonne contnant les pairs par userid
+  df2 = df2.withColumn(\"pairs\", combinations_list_2(\"movieIds\")).select(\"userId\",F.explode(\"pairs\").alias(\"movieIds\"))
+
+  # Step 4: Again only those itemsets are significant which cross the support threshold
+  
+  # On compte le nombre de pairs et ajoute cette colonne à la table précédente contenant (userid, pairs) --> (userid,pairs,count), enfin effectue un filtre sur les count suivant le seuil
+  Tripplet = df2.groupby(\"movieIds\").count().join(df2, \"movieIds\").filter(F.col(\"count\") >=  seuil)
+  
+ # On compte le nombre de pairs puis indexation des pairs et on effectue un filtre sur les count suivant le seuil
+  df2=df2.groupby(\"movieIds\").count().orderBy(F.col(\"count\").desc()).withColumn(\"ids\", F.monotonically_increasing_id()).filter(F.col(\"count\") >=  seuil)
+ # lien avec les movie_name
+  if movie_name == True : 
+    link_movie(df2,df_movie).show(25)
+  else : 
+    df2.show(25)
+    
+  # Tripplet
+  
+  # On récupère la table (userid,pairs,count) filtrée, On scinde les pairs --> (userid,movieId)
+  Tripplet = Tripplet.select(\"userId\", F.explode(\"movieIds\").alias(\"movieId\"))
+  # (userid,movieId) --> (userid,list(movieId))
+  Tripplet = Tripplet.groupBy('userId').agg(F.collect_set('movieId').alias('movieIds'))
+  # Modification de la colonne movieIds ((12,13,14), (14,13,11), (12,13,11) ) , puis création d'une colonne contenant les tripplets par userid, enfin indexation des tripplets 
+  Tripplet = Tripplet.withColumn(\"Tripplet\", combinations_list_3(\"movieIds\")).select(F.explode(\"Tripplet\").alias(\"movieIds\"))\\
+  .groupby(\"movieIds\").count()\\
+  .orderBy(F.col(\"count\").desc())\\
+  .withColumn(\"ids\", F.monotonically_increasing_id())
+  # filtre des tripplets suivant le seuil avant d'effectuer le lien avec les movie_name
+  Tripplet=Tripplet.filter(F.col(\"count\") >=  seuil)
+  if movie_name == True : 
+    link_movie(Tripplet,df_movie).show(25)
+  else : 
+    df2.show(25)
+ 
+  return seconds_between(start, strftime(\"%H:%M:%S\", gmtime()))"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\"></div>"]}}],"execution_count":28},{"cell_type":"code","source":["# Choix du min support optimal pour l'échantillon. L'objectif est d'enlever assez de données mais pas trop car il nous faut afficher 25 lignes au minimum.
+# Pour se faire, nous choisissons un min_suppot de telle sorte que moins de 95% de la donnée soit supprimée.   --> seuil=nb_users*minsupp ; df2=df2.filter(F.col(\"count\") >=  seuil)
+
+nb_users=lim_ratings_df.select(\"userId\").distinct().count()
+print(nb_users)
+lim_ratings_df.groupby(\"movieId\").count().summary(\"75%\", \"90%\", \"95%\", \"98%\").show()
+print(\"minsupport = 0.1\", 0.1*nb_users)
+print(\"minsupport = 0.05\", 0.05*nb_users)
+print(\"minsupport = 0.08\", 0.08*nb_users)
+print(\"minsupport = 0.02\", 0.02*nb_users)
+print(\"minsupport = 0.04\", 0.04*nb_users)
+print(\"minsupport = 0.01\", 0.01*nb_users)
+
+
+# **Résultats pour 1% de la donnée :**
+# minsupport = 0.04 entre 90% et 95% de movieids supprimés
+
+# **Résultats pour 10% de la donnée :**
+# min_support = 0.02 entre 90% et 95% de movieids supprimés
+
+# **Résultats pour 100% de la donnée :**
+# minsupport = 0.01 entre 90% et 95% de movieids supprimés
+
+# **Résultats pour l'échantillon de validation :**
+# min_support = 0.6 les moviedis vu moins de 2 fois sont retirés 
+
+# On remarque que plus l'échantillon comporte de données, plus le minsupport diminue. Cela est dû au fait que le nombre de spectateurs augmente et il est rare que de nombreux films soient vus par beaucoup d'utilisateurs. De plus, nous effectuons un deuxieme filtre qui prend les 100 derniers films vu par les spectateurs."],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">13885
++-------+--------+-----+
+summary| movieId|count|
++-------+--------+-----+
+    75%| 66156.0|   33|
+    90%| 97913.0|  156|
+    95%|109042.0|  335|
+    98%|117456.0|  710|
++-------+--------+-----+
+
+minsupport = 0.1 1388.5
+minsupport = 0.05 694.25
+minsupport = 0.08 1110.8
+minsupport = 0.02 277.7
+minsupport = 0.04 555.4
+minsupport = 0.01 138.85
+</div>"]}}],"execution_count":29},{"cell_type":"code","source":["# Report the execution time of the different approaches in your notebook
+times = 1
+Show_movie_name = False
+minsupp = 0.04
+
+print(\"##### NAIVE APPROACH 1 #####\")
+#La fonction \"measure_time\" ne recalcule pas \"times\" fois la fonction donc nous sommes obligés d'utiliser une boucle \"for\"..
+time_list = []
+for i in range(times) :
+    time = naive_approach_1(lim_ratings_df,movies_df,Show_movie_name )
+    time_list.append(time)
+naive_approach_1_avg = time_list, sum(time_list)/times
+
+
+print(\"##### NAIVE APPROACH 2 #####\")
+time_list = []
+for i in range(times) :
+    time = naive_approach_2(lim_ratings_df,movies_df,Show_movie_name ) 
+    time_list.append(time)
+naive_approach_2_avg = time_list, sum(time_list)/times
+
+
+print(\"##### APPRIORI APPROACH #####\")
+time_list = []
+for i in range(times) :
+    time = appriori_approach(lim_ratings_df, movies_df,minsupp, Show_movie_name)
+    time_list.append(time)
+appriori_approach_avg = time_list, sum(time_list)/times
+
+
+print(\"The average has been made on \", times, \" epoch(s)\")
+print(\" AVG time spent NAIVE APPROACH 1 : \", naive_approach_1_avg)
+print(\" AVG time spent NAIVE APPROACH 2 : \", naive_approach_2_avg)
+print(\" AVG time spent APPRIORI APPROACH : \", appriori_approach_avg)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">##### APPRIORI APPROACH #####
+Number of movieId before filtration :  7103
+Number of movieId after filtration :  374
++----------+-----+---+
+  movieIds|count|ids|
++----------+-----+---+
+[296, 318]|  245|  0|
+[356, 480]|  245|  1|
+[593, 318]|  208|  2|
+[296, 356]|  189|  3|
+[150, 296]|  187|  4|
+[296, 592]|  186|  5|
+[110, 356]|  183|  6|
+[150, 590]|  180|  7|
+[589, 480]|  179|  8|
+[593, 356]|  175|  9|
+[110, 480]|  174| 10|
+[377, 480]|  171| 11|
+[110, 296]|  170| 12|
+[296, 593]|  169| 13|
+[150, 592]|  167| 14|
+[296, 344]|  166| 15|
+[457, 590]|  166| 16|
+ [318, 50]|  165| 17|
+[592, 344]|  165| 18|
+[150, 457]|  164| 19|
+[110, 593]|  163| 20|
+[593, 527]|  163| 21|
+[296, 380]|  163| 22|
+[110, 318]|  162| 23|
+[296, 480]|  162| 24|
++----------+-----+---+
+only showing top 25 rows
+
++----------+-----+---+
+  movieIds|count|ids|
++----------+-----+---+
+[296, 318]|  245|  0|
+[356, 480]|  245|  1|
+[593, 318]|  208|  2|
+[296, 356]|  189|  3|
+[150, 296]|  187|  4|
+[296, 592]|  186|  5|
+[110, 356]|  183|  6|
+[150, 590]|  180|  7|
+[589, 480]|  179|  8|
+[593, 356]|  175|  9|
+[110, 480]|  174| 10|
+[377, 480]|  171| 11|
+[110, 296]|  170| 12|
+[296, 593]|  169| 13|
+[150, 592]|  167| 14|
+[296, 344]|  166| 15|
+[457, 590]|  166| 16|
+ [318, 50]|  165| 17|
+[592, 344]|  165| 18|
+[150, 457]|  164| 19|
+[110, 593]|  163| 20|
+[593, 527]|  163| 21|
+[296, 380]|  163| 22|
+[110, 318]|  162| 23|
+[296, 480]|  162| 24|
++----------+-----+---+
+only showing top 25 rows
+
+The average has been made on  1  epoch(s)
+ AVG time spent NAIVE APPROACH 1 :  ([19, 10, 10], 13.0)
+ AVG time spent NAIVE APPROACH 2 :  ([10, 10, 9], 9.666666666666666)
+ AVG time spent APPRIORI APPROACH :  ([26], 26.0)
+</div>"]}}],"execution_count":30},{"cell_type":"code","source":["# plot les résultats des différents essayes. Dans l'interface il faut choisir le bon format d'affichage pour voir un graphe avec 3 courbes pour chaque algo.
+time_result = []
+for i in range(times): 
+  time_result.append([i,naive_approach_1_avg[0][i],naive_approach_2_avg[0][i], appriori_approach_avg[0][i]])
+time_result = spark.createDataFrame(time_result, ['times','naive_approach_1_avg', 'naive_approach_2_avg', 'appriori_approach_avg'])
+display(time_result)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .table-result-container {
+    max-height: 300px;
+    overflow: auto;
+  }
+  table, th, td {
+    border: 1px solid black;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 5px;
+  }
+  th {
+    text-align: left;
+  }
+</style><div class='table-result-container'><table class='table-result'><thead style='background-color: white'><tr><th>times</th><th>naive_approach_1_avg</th><th>naive_approach_2_avg</th><th>appriori_approach_avg</th></tr></thead><tbody><tr><td>0</td><td>597</td><td>1471</td><td>37</td></tr></tbody></table></div>"]}}],"execution_count":31},{"cell_type":"markdown","source":["### 3. FP-growth
+https://www.softwaretestinghelp.com/fp-growth-algorithm-data-mining/"],"metadata":{}},{"cell_type":"markdown","source":["TASK 6: explain how FP-growth works in a few lines (in English or French!)
+
+L'objectif de cette méthode est de retourner les produits achetés le plus fréquemment lors d'une transaction. Dans notre cas on souhaite retourner uniquement des tripplets et des pairs. 
+C'est a dire retourner des movieds suivant leur fréquence d'apparition par userid.
+
+L'algorithme se déroule ainsi : 
+
+La première étape consiste à compter le nombre de spectateurs par film. On élimine les films peu fréquents c'est-à-dire ceux dont la fréquence est inférieur au min support (choisi abitrairement selon les données). Puis,  on crée un arbre (appelé FP-tree) classé par ordre de popularité du film (nombre de spectateurs). C'est à dire : on crée les noeuds et les liens transaction par transaction (dans notre cas userId par userId) en lui donnant plus de poids : si la transaction suivante partage un même item alors la valeur du noeud est incrémentée de 1.
+
+L'étape suivante part de l'item le plus bas et retient les chemins menant à cet item comme des sous-arbres. A partir de ces sous-arbres, on élimine les noeuds les moins fréquents avec le min support et on établit les associations d'items les plus fréquents. On reproduit cette procédure jusqu'à ce qu'il n'y ait plus d'items. On additionne les associations d'items les plus fréquentes entre elles. On obtient ainsi la liste des associations d'items les plus fréquentes.
+
+Enfin, nous avons choisi un \"confidence\" à 0.3. Cette indicateur donne la proportion d'un couple d'ids à être associé avec un autre id. Si cette proportion est supérieur à 0.3 dans notre cas alors on garde le tripplet."],"metadata":{}},{"cell_type":"code","source":["# TASK 7: Use FP Growth from the Spark MLlib to generate rules
+from pyspark.ml.fpm import FPGrowth
+from pyspark.sql.functions import size
+freqpatern = True
+times = 3
+minSupport = 0.02
+
+
+def FP_growth_time(df,df_movie,freqpatern, minSupport):
+  start =strftime(\"%H:%M:%S\", gmtime()) 
+  df=df.groupBy('userId').agg(F.collect_list('movieId').alias(\"liste film\"))
+
+  fpGrowth = FPGrowth(itemsCol=\"liste film\", minSupport=minSupport, minConfidence=0.3)
+  model = fpGrowth.fit(df)
+
+  # Renvoie les itemsets fréquents.
+  df=model.freqItemsets
+  
+  # Soit nous choisissons comme les algo précédents d'afficher les pairs et triplets fréquents :
+  if freqpatern==False :
+    df_2=df.withColumn(\"longlist\",size(\"items\"))
+    
+    # Sélection des pairs fréquents renvoyés par FP Growth
+    df2=df_2.filter(\"longlist=2\") \\
+    .select(F.col(\"items\").alias(\"movieIds\"),\"freq\") \\
+    .withColumn(\"ids\",F.monotonically_increasing_id())
+    link_movie(df2,movies_df ).show(25, False)
+    
+    # Sélection des triplets fréquents renvoyés par FP Growth
+    df3=df_2.filter(\"longlist=3\") \\
+    .select(F.col(\"items\").alias(\"movieIds\"),\"freq\") \\
+    .withColumn(\"ids\",F.monotonically_increasing_id())
+    link_movie(df3,df_movie ).show(25, False)
+  
+  # Soit nous affichons tous les types d'itemsets fréquents :
+  else :
+    
+    df=df.select(F.col(\"items\").alias(\"movieIds\"),\"freq\") \\
+    .withColumn(\"ids\",F.monotonically_increasing_id())
+    link_movie(df,df_movie ).show(25, False)
+    
+  return seconds_between(start, strftime(\"%H:%M:%S\", gmtime()))
+
+
+print(\"##### FP-growth APPROACH #####\")
+time_list = []
+for i in range(times) :
+    time = FP_growth_time(lim_ratings_df, movies_df, freqpatern, minSupport)
+    time_list.append(time)
+FP_approach_avg = time_list, sum(time_list)/times
+
+print(\" AVG time spent FP_growth : \", FP_approach_avg)"],"metadata":{},"outputs":[],"execution_count":34},{"cell_type":"code","source":["# plot les résultats des différents essayes. Dans l'interface il faut choisir le bon format d'affichage pour voir un graphe avec 3 courbes pour chaque algo.
+time_result = []
+for i in range(times): 
+  time_result.append([i,naive_approach_1_avg[0][i],naive_approach_2_avg[0][i], appriori_approach_avg[0][i], FP_approach_avg[0][i]])
+time_result = spark.createDataFrame(time_result, ['times','naive_approach_1_avg', 'naive_approach_2_avg', 'appriori_approach_avg', 'FP_approach_avg'])
+display(time_result)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .table-result-container {
+    max-height: 300px;
+    overflow: auto;
+  }
+  table, th, td {
+    border: 1px solid black;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 5px;
+  }
+  th {
+    text-align: left;
+  }
+</style><div class='table-result-container'><table class='table-result'><thead style='background-color: white'><tr><th>times</th><th>naive_approach_1_avg</th><th>naive_approach_2_avg</th><th>appriori_approach_avg</th><th>FP_approach_avg</th></tr></thead><tbody><tr><td>0</td><td>10</td><td>9</td><td>35</td><td>9</td></tr><tr><td>1</td><td>10</td><td>11</td><td>35</td><td>8</td></tr><tr><td>2</td><td>10</td><td>9</td><td>37</td><td>8</td></tr></tbody></table></div>"]}}],"execution_count":35},{"cell_type":"markdown","source":["#### 3.1 Conclusion
+
+*freqpatern = False
+
+#####**Résultats pour 1% de la donnée :**
+*minsupport = 0.04*
+
+ 
+Lors de l'affichage complet de la table avec les movie_name : nous obtenons cette erreur lors de l'éxécution des approches naives : **org.apache.spark.SparkException: Exception thrown in Future.get:**
+Cepedant nous parvenons à obtenir ces résultats lors de l'affchage des movieids uniquement.
+
+The average has been made on  1  epoch(s) --> showing movieids
+- AVG time spent NAIVE APPROACH 1 :  516.0
+- AVG time spent NAIVE APPROACH 2 :  1471.0
+- AVG time spent APPRIORI APPROACH :  26.0
+
+The average has been made on  3  epoch(s) --> showing movieids and moviename
+- AVG time spent APPRIORI APPROACH :  ([67, 70, 70], 69.0)
+- AVG time spent FP_growth :   ([59, 57, 57], 57.66)
+
+
+#####**Résultats pour 10% de la donnée :**
+*minsupport = 0.02*
+
+The average has been made on  3  epoch(s) --> showing movieids and moviename 
+- AVG time spent APPRIORI APPROACH :  ([501, 473, 509], 494.33)
+- AVG time spent FP_growth : ([430, 421, 434] , 428.3)
+
+
+#####**Résultats pour 100% de la donnée :**
+*minsupport = 0.01*
+
+Les deux méthodes n'ont pas été testées pour 100% de la donnée.
+
+En conclusion, on observe que les méthodes naives ne fournissent pas le même résulat. En effet il semblerait que la fonction \"combinations\" soit plus optimiser que la méthode utilisant deux \"join\".
+L'appriori approach est beaucoup plus performante que l'approche naïve. Cependant la méthode FP_growth est la plus performante.
+
+De plus, concernant les approches naïves, on observe lors de l'éxécution que le résultat des pairs s'affiche très vite (quelques secondes) contrairement au résultat des tripplets (plusieurs (dizaines de) minutes).
+
+Globalement, les résultats affichés sont identiques pour les trois méthodes. Les différences sont dûes au choix du minsupport.
+
+
+#####**Résultats pour l'échantillon de validation :**
+*minsupport = 0.6*
+
+- *AVG time spent NAIVE APPROACH 1 :  14.0, [14, 14, 14]*
+
+- *AVG time spent NAIVE APPROACH 2 :  14.0 ,  [14, 14, 14]*
+
+- *AVG time spent APPRIORI APPROACH :  34.66, [34, 35, 35]*
+
+- *AVG time spent FP_growth :  [5, 4, 5], 4.66*
+
+
+Cette conclusion est un peu différente pour l'échantillon de validation (exemple ci dessous). En effet la méthode appriori est plus lente du au nombre d'opérations importants à effectuer. Sur des petits dataset les méthodes naives sont plus efficaces. Nénamoins la méthode FP_growth reste la plus efficace de toutes."],"metadata":{}},{"cell_type":"markdown","source":["### 4. Validation
+Build a validation dataset to debug your code (naive, a priori, fp-growth)"],"metadata":{}},{"cell_type":"code","source":["# TASK 8:
+print(\"##### EXAMPLE SET #####\")
+times=3
+minsupp = 0.6 # Dans cet exemple il faut prendre un minsupport > 0.5 pour qu'une filtration est lieu car nous avons 2 users
+freqpatern = False
+
+
+Example = [(123, 2),(123, 1),(123, 3), (123, 5) , (1234, 1),  (1234, 4),  (1234, 5),  (1234, 3)]
+Example_movie = [(\"A\",1),(\"B\",2),(\"C\",3),(\"D\",4),(\"E\",5)]
+Example = spark.createDataFrame(Example, ['userId', 'movieId'])
+Example_movie = spark.createDataFrame(Example_movie, ['title', 'movieId'])
+
+Example.show(25)
+Example_movie.show(25)
+
+print(\"##### NAIVE APPROACH 1 #####\")
+# La fonction \"measure_time\" ne recalcule pas times fois la fonction donc obligé de faire un for ..
+time_list = []
+for i in range(times) :
+    time = naive_approach_1(Example,Example_movie,True )
+    time_list.append(time)
+naive_approach_1_avg = time_list, sum(time_list)/times
+
+
+print(\"##### NAIVE APPROACH 2 #####\")
+time_list = []
+for i in range(times) :
+    time = naive_approach_2(Example,Example_movie,True ) 
+    time_list.append(time)
+naive_approach_2_avg = time_list, sum(time_list)/times
+
+print(\"##### APPRIORI APPROACH #####\")
+time_list = []
+for i in range(times) :
+    time = appriori_approach(Example, Example_movie,minsupp, True)
+    time_list.append(time)
+appriori_approach_avg = time_list, sum(time_list)/times
+
+print(\"##### FP-growth APPROACH #####\")
+time_list = []
+for i in range(times) :
+    time = FP_growth_time(Example, Example_movie, freqpatern, minSupport)
+    time_list.append(time)
+FP_approach_avg = time_list, sum(time_list)/times
+
+print(\"The average has been made on \", times, \" epoch(s)\")
+print(\" AVG time spent NAIVE APPROACH 1 : \", naive_approach_1_avg )
+print(\" AVG time spent NAIVE APPROACH 2 : \", naive_approach_2_avg)
+print(\" AVG time spent APPRIORI APPROACH : \", appriori_approach_avg )
+print(\" AVG time spent FP_growth : \", FP_approach_avg)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .ansiout {
+    display: block;
+    unicode-bidi: embed;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-all;
+    font-family: \"Source Code Pro\", \"Menlo\", monospace;;
+    font-size: 13px;
+    color: #555;
+    margin-left: 4px;
+    line-height: 19px;
+  }
+</style>
+<div class=\"ansiout\">##### EXAMPLE SET #####
++------+-------+
+userId|movieId|
++------+-------+
+   123|      2|
+   123|      1|
+   123|      3|
+   123|      5|
+  1234|      1|
+  1234|      4|
+  1234|      5|
+  1234|      3|
++------+-------+
+
++-----+-------+
+title|movieId|
++-----+-------+
+    A|      1|
+    B|      2|
+    C|      3|
+    D|      4|
+    E|      5|
++-----+-------+
+
+##### FP-growth APPROACH #####
++-----------+--------+----+--------------------------------------------------------------+
+ids        |movieIds|freq|Movie_names                                                   |
++-----------+--------+----+--------------------------------------------------------------+
+8589934592 |[3, 1]  |2   |[Grumpier Old Men (1995), Toy Story (1995)]                   |
+17179869184|[5, 3]  |2   |[Father of the Bride Part II (1995), Grumpier Old Men (1995)] |
+17179869185|[5, 1]  |2   |[Father of the Bride Part II (1995), Toy Story (1995)]        |
+25769803776|[2, 5]  |1   |[Father of the Bride Part II (1995), Jumanji (1995)]          |
+25769803777|[2, 3]  |1   |[Jumanji (1995), Grumpier Old Men (1995)]                     |
+25769803778|[2, 1]  |1   |[Jumanji (1995), Toy Story (1995)]                            |
+34359738368|[4, 5]  |1   |[Father of the Bride Part II (1995), Waiting to Exhale (1995)]|
+34359738369|[4, 3]  |1   |[Grumpier Old Men (1995), Waiting to Exhale (1995)]           |
+34359738370|[4, 1]  |1   |[Toy Story (1995), Waiting to Exhale (1995)]                  |
++-----------+--------+----+--------------------------------------------------------------+
+
++-----------+---------+----+-----------+
+ids        |movieIds |freq|Movie_names|
++-----------+---------+----+-----------+
+17179869184|[5, 3, 1]|2   |[C, E, A]  |
+25769803776|[2, 5, 3]|1   |[C, E, B]  |
+25769803777|[2, 5, 1]|1   |[E, B, A]  |
+25769803778|[2, 3, 1]|1   |[C, B, A]  |
+34359738368|[4, 5, 3]|1   |[C, E, D]  |
+34359738369|[4, 5, 1]|1   |[E, A, D]  |
+34359738370|[4, 3, 1]|1   |[C, A, D]  |
++-----------+---------+----+-----------+
+
++-----------+--------+----+--------------------------------------------------------------+
+ids        |movieIds|freq|Movie_names                                                   |
++-----------+--------+----+--------------------------------------------------------------+
+8589934592 |[3, 1]  |2   |[Grumpier Old Men (1995), Toy Story (1995)]                   |
+17179869184|[5, 3]  |2   |[Father of the Bride Part II (1995), Grumpier Old Men (1995)] |
+17179869185|[5, 1]  |2   |[Father of the Bride Part II (1995), Toy Story (1995)]        |
+25769803776|[2, 5]  |1   |[Father of the Bride Part II (1995), Jumanji (1995)]          |
+25769803777|[2, 3]  |1   |[Jumanji (1995), Grumpier Old Men (1995)]                     |
+25769803778|[2, 1]  |1   |[Jumanji (1995), Toy Story (1995)]                            |
+34359738368|[4, 5]  |1   |[Father of the Bride Part II (1995), Waiting to Exhale (1995)]|
+34359738369|[4, 3]  |1   |[Grumpier Old Men (1995), Waiting to Exhale (1995)]           |
+34359738370|[4, 1]  |1   |[Toy Story (1995), Waiting to Exhale (1995)]                  |
++-----------+--------+----+--------------------------------------------------------------+
+
++-----------+---------+----+-----------+
+ids        |movieIds |freq|Movie_names|
++-----------+---------+----+-----------+
+17179869184|[5, 3, 1]|2   |[C, E, A]  |
+25769803776|[2, 5, 3]|1   |[C, E, B]  |
+25769803777|[2, 5, 1]|1   |[E, B, A]  |
+25769803778|[2, 3, 1]|1   |[C, B, A]  |
+34359738368|[4, 5, 3]|1   |[C, E, D]  |
+34359738369|[4, 5, 1]|1   |[E, A, D]  |
+34359738370|[4, 3, 1]|1   |[C, A, D]  |
++-----------+---------+----+-----------+
+
++-----------+--------+----+--------------------------------------------------------------+
+ids        |movieIds|freq|Movie_names                                                   |
++-----------+--------+----+--------------------------------------------------------------+
+8589934592 |[3, 1]  |2   |[Grumpier Old Men (1995), Toy Story (1995)]                   |
+17179869184|[5, 3]  |2   |[Father of the Bride Part II (1995), Grumpier Old Men (1995)] |
+17179869185|[5, 1]  |2   |[Father of the Bride Part II (1995), Toy Story (1995)]        |
+25769803776|[2, 5]  |1   |[Father of the Bride Part II (1995), Jumanji (1995)]          |
+25769803777|[2, 3]  |1   |[Jumanji (1995), Grumpier Old Men (1995)]                     |
+25769803778|[2, 1]  |1   |[Jumanji (1995), Toy Story (1995)]                            |
+34359738368|[4, 5]  |1   |[Father of the Bride Part II (1995), Waiting to Exhale (1995)]|
+34359738369|[4, 3]  |1   |[Grumpier Old Men (1995), Waiting to Exhale (1995)]           |
+34359738370|[4, 1]  |1   |[Toy Story (1995), Waiting to Exhale (1995)]                  |
++-----------+--------+----+--------------------------------------------------------------+
+
++-----------+---------+----+-----------+
+ids        |movieIds |freq|Movie_names|
++-----------+---------+----+-----------+
+17179869184|[5, 3, 1]|2   |[C, E, A]  |
+25769803776|[2, 5, 3]|1   |[C, E, B]  |
+25769803777|[2, 5, 1]|1   |[E, B, A]  |
+25769803778|[2, 3, 1]|1   |[C, B, A]  |
+34359738368|[4, 5, 3]|1   |[C, E, D]  |
+34359738369|[4, 5, 1]|1   |[E, A, D]  |
+34359738370|[4, 3, 1]|1   |[C, A, D]  |
++-----------+---------+----+-----------+
+
+The average has been made on  3  epoch(s)
+ AVG time spent NAIVE APPROACH 1 :  ([10, 10, 10], 10.0)
+ AVG time spent NAIVE APPROACH 2 :  ([9, 11, 9], 9.666666666666666)
+ AVG time spent APPRIORI APPROACH :  ([35, 35, 37], 35.666666666666664)
+ AVG time spent FP_growth :  ([9, 8, 8], 8.333333333333334)
+</div>"]}}],"execution_count":38},{"cell_type":"code","source":["# plot les résultats des différents essayes. Dans l'interface il faut choisir le bon format d'affichage pour voir un graphe avec 3 courbes pour chaque algo.
+time_result = []
+for i in range(times): 
+  time_result.append([i,naive_approach_1_avg[0][i],naive_approach_2_avg[0][i], appriori_approach_avg[0][i], FP_approach_avg[0][i]])
+time_result = spark.createDataFrame(time_result, ['times','naive_approach_1_avg', 'naive_approach_2_avg', 'appriori_approach_avg', 'FP_approach_avg'])
+display(time_result)"],"metadata":{},"outputs":[{"metadata":{},"output_type":"display_data","data":{"text/html":["<style scoped>
+  .table-result-container {
+    max-height: 300px;
+    overflow: auto;
+  }
+  table, th, td {
+    border: 1px solid black;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 5px;
+  }
+  th {
+    text-align: left;
+  }
+</style><div class='table-result-container'><table class='table-result'><thead style='background-color: white'><tr><th>times</th><th>naive_approach_1_avg</th><th>naive_approach_2_avg</th><th>appriori_approach_avg</th><th>FP_approach_avg</th></tr></thead><tbody><tr><td>0</td><td>10</td><td>9</td><td>35</td><td>9</td></tr><tr><td>1</td><td>10</td><td>11</td><td>35</td><td>8</td></tr><tr><td>2</td><td>10</td><td>9</td><td>37</td><td>8</td></tr></tbody></table></div>"]}}],"execution_count":39},{"cell_type":"markdown","source":["### Grading & instructions"],"metadata":{}},{"cell_type":"markdown","source":["You must return your notebook before **Monday Feb 10th midnight Paris time** by email to Amine, Marc and Olivier."],"metadata":{}},{"cell_type":"markdown","source":["Grade will be composed of :
+1. Timely return
+2. Correctness (how you built and used your validation dataset)
+3. Readability
+4. Performance (this is not a race but we want to see that you compared the running time of your three algorithms)"],"metadata":{}}],"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"},"language_info":{"mimetype":"text/x-python","name":"python","pygments_lexer":"ipython3","codemirror_mode":{"name":"ipython","version":3},"version":"3.7.4","nbconvert_exporter":"python","file_extension":".py"},"name":"rule-mining","notebookId":3070388658089903},"nbformat":4,"nbformat_minor":0}
