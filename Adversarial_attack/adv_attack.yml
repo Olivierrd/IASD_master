@@ -1,0 +1,6 @@
+name: tf-gpu
+channels:
+  - conda-forge
+  - defaults
+prefix: C:\Users\HMA11\AppData\Local\Continuum\anaconda3\envs\tf-gpu
+
