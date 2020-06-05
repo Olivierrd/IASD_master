@@ -1,0 +1,678 @@
+[
+    {
+        "command": "CDrill_1800_32bit.exe",
+        "workingDirectory": "C:/Users/OlivierRANDAVEL/PycharmProjects/MC_ChessGame/Python-Easy-Chess-GUI/Engines",
+        "name": "CDrill 1800",
+        "protocol": "uci",
+        "options": [
+            {
+                "name": "Ponder",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "OwnBook",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "MultiPV",
+                "default": 1,
+                "value": 1,
+                "type": "spin",
+                "min": 1,
+                "max": 300
+            },
+            {
+                "name": "MaterialWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "PawnStructureWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "PassedPawnWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "MobilityWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "ThreatWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "KingAttackWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "KingShelterWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "RepeatScore",
+                "default": -15,
+                "value": -15,
+                "type": "spin",
+                "min": -32000,
+                "max": 32000
+            }
+        ]
+    },
+    {
+        "command": "Deuterium_v2019.1.36.50_32bit.exe",
+        "workingDirectory": "C:/Users/OlivierRANDAVEL/PycharmProjects/MC_ChessGame/Python-Easy-Chess-GUI/Engines",
+        "name": "Deuterium v2019.1.36.50",
+        "protocol": "uci",
+        "options": [
+            {
+                "name": "Hash",
+                "default": 128,
+                "value": 32,
+                "type": "spin",
+                "min": 8,
+                "max": 2048
+            },
+            {
+                "name": "EvalHash",
+                "default": 32,
+                "value": 32,
+                "type": "spin",
+                "min": 4,
+                "max": 32
+            },
+            {
+                "name": "PawnHash",
+                "default": 4,
+                "value": 4,
+                "type": "spin",
+                "min": 2,
+                "max": 8
+            },
+            {
+                "name": "Log",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "Ponder",
+                "default": true,
+                "value": true,
+                "type": "check"
+            },
+            {
+                "name": "OwnBook",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "BookFilename",
+                "default": "deuterium.bin",
+                "value": "deuterium.bin",
+                "type": "string"
+            },
+            {
+                "name": "BookMoveSelect",
+                "default": "Random",
+                "value": "Random",
+                "type": "combo",
+                "choices": [
+                    "BestWeight",
+                    "BestScore",
+                    "Random"
+                ]
+            },
+            {
+                "name": "PawnValueOp",
+                "default": 95,
+                "value": 95,
+                "type": "spin",
+                "min": 70,
+                "max": 110
+            },
+            {
+                "name": "PawnValueEn",
+                "default": 125,
+                "value": 125,
+                "type": "spin",
+                "min": 90,
+                "max": 150
+            },
+            {
+                "name": "KnightValueOp",
+                "default": 325,
+                "value": 325,
+                "type": "spin",
+                "min": 250,
+                "max": 350
+            },
+            {
+                "name": "KnightValueEn",
+                "default": 315,
+                "value": 315,
+                "type": "spin",
+                "min": 250,
+                "max": 350
+            },
+            {
+                "name": "BishopValueOp",
+                "default": 328,
+                "value": 328,
+                "type": "spin",
+                "min": 250,
+                "max": 350
+            },
+            {
+                "name": "BishopValueEn",
+                "default": 327,
+                "value": 327,
+                "type": "spin",
+                "min": 250,
+                "max": 350
+            },
+            {
+                "name": "RookValueOp",
+                "default": 504,
+                "value": 504,
+                "type": "spin",
+                "min": 450,
+                "max": 550
+            },
+            {
+                "name": "RookValueEn",
+                "default": 498,
+                "value": 498,
+                "type": "spin",
+                "min": 450,
+                "max": 550
+            },
+            {
+                "name": "QueenValueOp",
+                "default": 996,
+                "value": 996,
+                "type": "spin",
+                "min": 900,
+                "max": 1200
+            },
+            {
+                "name": "QueenValueEn",
+                "default": 999,
+                "value": 999,
+                "type": "spin",
+                "min": 900,
+                "max": 1200
+            },
+            {
+                "name": "KingShelterWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 25,
+                "max": 100000
+            },
+            {
+                "name": "PawnStormWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 25,
+                "max": 100000
+            },
+            {
+                "name": "KingAttackWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 25,
+                "max": 100000
+            },
+            {
+                "name": "MobilityWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 25,
+                "max": 100000
+            },
+            {
+                "name": "PassedPawnWeightOp",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 25,
+                "max": 100000
+            },
+            {
+                "name": "PassedPawnWeightEn",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 25,
+                "max": 100000
+            },
+            {
+                "name": "WeakSquareWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 100000
+            },
+            {
+                "name": "RookInOpenFileOp",
+                "default": 32,
+                "value": 32,
+                "type": "spin",
+                "min": 4,
+                "max": 100
+            },
+            {
+                "name": "RookInOpenFileEn",
+                "default": 16,
+                "value": 16,
+                "type": "spin",
+                "min": 2,
+                "max": 100
+            },
+            {
+                "name": "NullMove",
+                "default": true,
+                "value": true,
+                "type": "check"
+            },
+            {
+                "name": "RepetitionScore",
+                "default": 0,
+                "value": 0,
+                "type": "spin",
+                "min": -29800,
+                "max": 29800
+            },
+            {
+                "name": "InsufficientMaterialScore",
+                "default": 0,
+                "value": 0,
+                "type": "spin",
+                "min": -29800,
+                "max": 29800
+            },
+            {
+                "name": "FiftyMoveScore",
+                "default": 0,
+                "value": 0,
+                "type": "spin",
+                "min": -29800,
+                "max": 29800
+            },
+            {
+                "name": "StaleMateScore",
+                "default": 0,
+                "value": 0,
+                "type": "spin",
+                "min": -29800,
+                "max": 29800
+            },
+            {
+                "name": "TimeBufferMilliSec",
+                "default": 60,
+                "value": 60,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "MultiPV",
+                "default": 1,
+                "value": 1,
+                "type": "spin",
+                "min": 1,
+                "max": 300
+            },
+            {
+                "name": "UCI_AnalyseMode",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "ClearHash",
+                "default": null,
+                "value": null,
+                "type": "button"
+            }
+        ]
+    },
+    {
+        "command": "Deuterium_v2019.2.37.73_64bit_pop.exe",
+        "workingDirectory": "C:/Users/OlivierRANDAVEL/PycharmProjects/MC_ChessGame/Python-Easy-Chess-GUI/Engines",
+        "name": "Deuterium v2019.2.37.73",
+        "protocol": "uci",
+        "options": [
+            {
+                "name": "Hash",
+                "default": 128,
+                "value": 32,
+                "type": "spin",
+                "min": 8,
+                "max": 2048
+            },
+            {
+                "name": "EvalHash",
+                "default": 32,
+                "value": 32,
+                "type": "spin",
+                "min": 4,
+                "max": 32
+            },
+            {
+                "name": "PawnHash",
+                "default": 4,
+                "value": 4,
+                "type": "spin",
+                "min": 2,
+                "max": 8
+            },
+            {
+                "name": "UCI_LimitStrength",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "UCI_Elo",
+                "default": 2800,
+                "value": 2800,
+                "type": "spin",
+                "min": 1000,
+                "max": 2800
+            },
+            {
+                "name": "Log",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "Ponder",
+                "default": true,
+                "value": true,
+                "type": "check"
+            },
+            {
+                "name": "OwnBook",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "BookFilename",
+                "default": "deuterium.bin",
+                "value": "deuterium.bin",
+                "type": "string"
+            },
+            {
+                "name": "BookMoveSelect",
+                "default": "BestWeight",
+                "value": "BestWeight",
+                "type": "combo",
+                "choices": [
+                    "BestWeight",
+                    "BestScore",
+                    "Random"
+                ]
+            },
+            {
+                "name": "PawnValueOp",
+                "default": 94,
+                "value": 94,
+                "type": "spin",
+                "min": 70,
+                "max": 110
+            },
+            {
+                "name": "PawnValueEn",
+                "default": 92,
+                "value": 92,
+                "type": "spin",
+                "min": 90,
+                "max": 150
+            },
+            {
+                "name": "KnightValueOp",
+                "default": 325,
+                "value": 325,
+                "type": "spin",
+                "min": 200,
+                "max": 500
+            },
+            {
+                "name": "KnightValueEn",
+                "default": 315,
+                "value": 315,
+                "type": "spin",
+                "min": 200,
+                "max": 500
+            },
+            {
+                "name": "BishopValueOp",
+                "default": 350,
+                "value": 350,
+                "type": "spin",
+                "min": 200,
+                "max": 500
+            },
+            {
+                "name": "BishopValueEn",
+                "default": 350,
+                "value": 350,
+                "type": "spin",
+                "min": 200,
+                "max": 500
+            },
+            {
+                "name": "RookValueOp",
+                "default": 493,
+                "value": 493,
+                "type": "spin",
+                "min": 300,
+                "max": 800
+            },
+            {
+                "name": "RookValueEn",
+                "default": 525,
+                "value": 525,
+                "type": "spin",
+                "min": 300,
+                "max": 800
+            },
+            {
+                "name": "QueenValueOp",
+                "default": 985,
+                "value": 985,
+                "type": "spin",
+                "min": 500,
+                "max": 1500
+            },
+            {
+                "name": "QueenValueEn",
+                "default": 1022,
+                "value": 1022,
+                "type": "spin",
+                "min": 500,
+                "max": 1500
+            },
+            {
+                "name": "KingShelterWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 100000
+            },
+            {
+                "name": "PawnStormWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 100000
+            },
+            {
+                "name": "KingAttackWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 100000
+            },
+            {
+                "name": "MobilityWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 100000
+            },
+            {
+                "name": "PassedPawnWeightOp",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 100000
+            },
+            {
+                "name": "PassedPawnWeightEn",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 100000
+            },
+            {
+                "name": "WeakSquareWeight",
+                "default": 100,
+                "value": 100,
+                "type": "spin",
+                "min": 0,
+                "max": 100000
+            },
+            {
+                "name": "RookInOpenFileOp",
+                "default": 32,
+                "value": 32,
+                "type": "spin",
+                "min": 0,
+                "max": 100
+            },
+            {
+                "name": "RookInOpenFileEn",
+                "default": 16,
+                "value": 16,
+                "type": "spin",
+                "min": 0,
+                "max": 100
+            },
+            {
+                "name": "NullMove",
+                "default": true,
+                "value": true,
+                "type": "check"
+            },
+            {
+                "name": "RepetitionScore",
+                "default": 0,
+                "value": 0,
+                "type": "spin",
+                "min": -29800,
+                "max": 29800
+            },
+            {
+                "name": "InsufficientMaterialScore",
+                "default": 0,
+                "value": 0,
+                "type": "spin",
+                "min": -29800,
+                "max": 29800
+            },
+            {
+                "name": "FiftyMoveScore",
+                "default": 0,
+                "value": 0,
+                "type": "spin",
+                "min": -29800,
+                "max": 29800
+            },
+            {
+                "name": "StaleMateScore",
+                "default": 0,
+                "value": 0,
+                "type": "spin",
+                "min": -29800,
+                "max": 29800
+            },
+            {
+                "name": "TimeBufferMilliSec",
+                "default": 60,
+                "value": 60,
+                "type": "spin",
+                "min": 0,
+                "max": 1000
+            },
+            {
+                "name": "MultiPV",
+                "default": 1,
+                "value": 1,
+                "type": "spin",
+                "min": 1,
+                "max": 300
+            },
+            {
+                "name": "UCI_AnalyseMode",
+                "default": false,
+                "value": false,
+                "type": "check"
+            },
+            {
+                "name": "ClearHash",
+                "default": null,
+                "value": null,
+                "type": "button"
+            }
+        ]
+    }
+]
