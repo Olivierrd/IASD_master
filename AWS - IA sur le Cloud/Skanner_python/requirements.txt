@@ -1,0 +1,4 @@
+flask
+flask_ngrok
+scikit-image
+tensorflow
