@@ -6,7 +6,7 @@ This course has been teached by Criteo researchers.
 
 The project was written in collaboration with Maxime Talarmain. 
 The project_DL_image.py python file gathers all experiments. It is possible to reproduce all experiments using data availaible through the data link.
-Besides the log folder helps to visulaize all experiments using tensorboard. 
+Besides the log folder helps to visualize all experiments using tensorboard. 
 
 Expriments are divided in two parts. 
 
