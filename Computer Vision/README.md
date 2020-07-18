@@ -1,6 +1,6 @@
 <h1>Computer Vision</h1>
 
-This course has been teached by Criteo researchers. 
+This [course](https://github.com/criteo-research/master-iasd) has been teached by Criteo researchers. 
 
 <h1>Project</h1>
 
