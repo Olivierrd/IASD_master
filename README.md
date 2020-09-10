@@ -1,4 +1,4 @@
-# IASD_master
+# IASD Master
 
 This github has been created in order to gather all projects done during my second master year.
 
