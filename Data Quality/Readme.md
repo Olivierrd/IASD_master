@@ -1,12 +1,12 @@
-#Data Quality
+# Data Quality
 
-##Course 
+## Course 
 
 This course was taught by [Veronique Fournel](https://www.linkedin.com/in/v%C3%A9ronique-fournel-33061b61/) working at 
 *la Caisse des Dépôts*. It focuses on the data quality software talend and some others. It aims to give an overview of
 all ETL on the market.
 
-##Project
+## Project
 
 The aim of the project was to demonstrate an efficient mean to evaluate the quality of a Collaboratively Edited Documents. 
 We use the case of Wikipedia article as an example.
