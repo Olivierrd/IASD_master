@@ -1,6 +1,7 @@
 #Data Quality
 
 ##Course 
+
 This course was taught by [Veronique Fournel](https://www.linkedin.com/in/v%C3%A9ronique-fournel-33061b61/) working at 
 *la Caisse des Dépôts*. It focuses on the data quality software talend and some others. It aims to give an overview of
 all ETL on the market.
