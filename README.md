@@ -11,7 +11,7 @@ normale supérieure, and Mines ParisTech
 
 The master program can be found through this [link](https://www.lamsade.dauphine.fr/wp/iasd/en/)
 
-![Alt text](AFIA.png?raw=true)
+![Alt text](afia.png?raw=true)
 
 
 ## Linkedin
