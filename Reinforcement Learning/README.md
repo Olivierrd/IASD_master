@@ -11,12 +11,14 @@ between exploration (discovery of yet uncertain behaviors) and exploitation (foc
 the most relevant results so far). This introductory course will provide the main methodological building blocks of 
 reinforcement learning. Some basic notions in probability theory are required to follow the course. The course will 
 imply some work on simple implementations of the algorithms, assuming familiarity with common scientific computing 
-language. Program 1. Multiarmed bandits, Markov Decision Processes and other models 2. Planning: finite and infinite 
-horizon problems, the value function, Bellman equations, dynamic programming, value and policy iteration 3. 
-Probabilistic and statistical tools for RL: Bayesian models, relative entropy and hypothesis testing, concentration 
-inequalities, linear regression, the stochastic approximation algorithm 4. RL algorithms for multiarmed bandits: the 
-explore vs. exploit compromise, bandit algorithms vs. A/B testing, UCB, Thomson sampling, contextual bandits 5. RL 
-algorithms for Markov Decision Processes: off policy and on policy learning, Q-learning, SARSA, Monte Carlo tree search.
+language. 
+
+1. Multiarmed bandits, Markov Decision Processes and other models 
+2. Planning: finite and infinite horizon problems, the value function, Bellman equations, dynamic programming, value and policy iteration 
+3. Probabilistic and statistical tools for RL: Bayesian models, relative entropy and hypothesis testing, concentration 
+inequalities, linear regression, the stochastic approximation algorithm 
+4. RL algorithms for multiarmed bandits: the explore vs. exploit compromise, bandit algorithms vs. A/B testing, UCB, Thomson sampling, contextual bandits 
+5. RL algorithms for Markov Decision Processes: off policy and on policy learning, Q-learning, SARSA, Monte Carlo tree search.
 
 ## Project
 
