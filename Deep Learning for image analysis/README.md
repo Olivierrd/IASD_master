@@ -1,5 +1,7 @@
 # Deep Learning for image analysis
 
+![Alt text](criteo_lab.PNG?raw=true "Title")
+
 ## Course
 
 This [course](https://github.com/criteo-research/master-iasd) has been teached by Criteo researchers. 
