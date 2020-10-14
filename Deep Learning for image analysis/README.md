@@ -10,9 +10,9 @@ Besides the log folder helps to visualize all experiments using tensorboard.
 
 Expriments are divided in two parts. 
 
-![Test Image 4](https://raw.githubusercontent.com/Olivierrd/IASD_master/master/Computer%20Vision/Data_Preprocessing.PNG)
+![Test Image 4](https://raw.githubusercontent.com/Olivierrd/IASD_master/master/Deep%20Learning%20for%20image%20analysis/Data_Preprocessing.PNG)
 
 
 It appears that we get best model using data preprocessing of the second part. We obtain 96.5% of accuracy on the model named MobileNet_AD_V2.
 
-![Test Image 5](https://raw.githubusercontent.com/Olivierrd/IASD_master/master/Computer%20Vision/Results.PNG)
+![Test Image 5](https://raw.githubusercontent.com/Olivierrd/IASD_master/master/Deep%20Learning%20for%20image%20analysis/Results.PNG)
