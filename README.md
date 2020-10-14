@@ -7,7 +7,11 @@ I am proud to be part of the first master year. As master representative of year
 is at the cutting edge of technology. This master is joined with PSL Master program between Paris-Dauphine, École 
 normale supérieure, and Mines ParisTech
  
+<<<<<<< HEAD
 ![Alt text](logo_dauphine.png?raw=true "Title")
+=======
+![Alt text](logo dauphine.png?raw=true "Title")
+>>>>>>> 3f6b1220880f8962224eac4ecbce2ae730216c6c
 ![Alt text](AFIA.png?raw=true "Title")
 
 The master program can be found through this [link](https://www.lamsade.dauphine.fr/wp/iasd/en/)
