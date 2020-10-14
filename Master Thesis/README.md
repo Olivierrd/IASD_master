@@ -3,7 +3,7 @@
 In collaboration with M13H data science team and Labelium group, this thesis aims to develop a new tool.
 This tool is transversal between all entities of Labelium group.
 
-##Aim
+## Aim
 
 Improve Amazon product referencing based only on the semantic part of the product information sheet. This improvement
 provides advices to enrich the semantic and to understand product competitors (market study).
