@@ -26,4 +26,5 @@ The final exam was a project done in collaboration with [Maxime Talarmain](https
 
 This project aims to reproduce all experimentation shown during the course. Students have to produce the code from 
 scratch and should obtain same visualizations. 
+
 This work obtains the grade 15/20
