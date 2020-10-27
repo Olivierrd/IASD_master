@@ -13,14 +13,15 @@ The master program can be found through this [link](https://www.lamsade.dauphine
 
 ![Alt text](afia.png?raw=true)
 
-
-## Linkedin
-
-If you want to get in touch, you can contact me through [Olivier Randavel : linkedin](https://www.linkedin.com/in/olivier-randavel/)
-
 ## GitHub
 
 This GitHub has been created in order to display all projects made during this year. The master thesis has been developed
 during my part-time job at [M13H](https://www.m13h.com/fr/)
 
 ![Alt text](program.png?raw=true "Title")
+
+## Linkedin
+
+If you want to get in touch, you can contact me through [Olivier Randavel : linkedin](https://www.linkedin.com/in/olivier-randavel/)
+
+![Alt text](CV_Olivier_Randavel.png?raw=true)
