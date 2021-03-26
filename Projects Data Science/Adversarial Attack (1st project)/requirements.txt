@@ -129,7 +129,7 @@ pytz==2019.3
 PyWavelets==1.1.1
 pywin32==227
 pywinpty==0.5.7
-PyYAML==5.1.2
+PyYAML==5.4
 pyzmq==18.1.1
 qgrid==1.1.1
 qtconsole==4.6.0
