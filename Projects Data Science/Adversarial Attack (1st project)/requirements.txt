@@ -119,7 +119,7 @@ pybind11==2.4.3
 pycparser==2.20
 pydot==1.2.3
 pyglet==1.3.2
-Pygments==2.5.2
+Pygments==2.7.4
 pyparsing==2.4.5
 pypiwin32==223
 pyrsistent==0.15.6
