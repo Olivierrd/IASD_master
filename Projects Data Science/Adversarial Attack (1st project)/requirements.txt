@@ -184,7 +184,7 @@ typed-astunparse==2.1.4
 urllib3==1.25.8
 version-query==1.0.5
 vowpalwabbit==8.8.1
-waitress==1.4.3
+waitress==2.1.1
 wcwidth==0.1.7
 webencodings==0.5.1
 websocket-client==0.57.0
