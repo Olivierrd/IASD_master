@@ -160,7 +160,7 @@ static-typing==0.2.7
 tabulate==0.8.6
 tb-nightly==1.14.0a20190603
 tensorboard==2.1.1
-tensorflow==2.0.1
+tensorflow==2.7.2
 tensorflow-datasets==1.2.0
 tensorflow-estimator==2.0.0
 tensorflow-estimator-2.0-preview==2.0.0
